@@ -1,0 +1,32 @@
+#include <windows.h>
+#include "../src/version.h"
+
+1 ICON "app.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION SG_VERSION_MAJOR,SG_VERSION_MINOR,SG_VERSION_PATCH,0
+ PRODUCTVERSION SG_VERSION_MAJOR,SG_VERSION_MINOR,SG_VERSION_PATCH,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "0c0a04b0"
+        BEGIN
+            VALUE "FileDescription", "ServiGestWin10 - Gestor masivo de servicios de Windows 10"
+            VALUE "FileVersion", SG_VERSION_STR
+            VALUE "InternalName", "ServiGestWin10"
+            VALUE "OriginalFilename", "ServiGestWin10.exe"
+            VALUE "ProductName", "ServiGestWin10"
+            VALUE "ProductVersion", SG_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0c0a, 1200
+    END
+END
