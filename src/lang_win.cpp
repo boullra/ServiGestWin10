@@ -1,6 +1,8 @@
 // ServiGestWin10 - lang_win.cpp
 #include "lang_win.hpp"
 
+#include <cwctype>
+
 #include "core.hpp"
 #include "i18n.hpp"
 

@@ -139,6 +139,20 @@ Estructura:
 | `tests/test_core.cpp` | 415 comprobaciones |
 | `res/` | Manifiesto, icono, versión e idiomas incrustados |
 
+## Integración continua
+
+Cada push a `main` o `dev` y cada pull request hacia ellas ejecuta `.github/workflows/ci.yml` en
+GitHub Actions:
+
+| Trabajo | Qué hace |
+|---|---|
+| **Idiomas** | `tools/check_i18n.py`: mismas claves y marcadores en todos los idiomas |
+| **Linux · MinGW-w64** | Tests portables con AddressSanitizer y UBSan (avisos como errores) y compilación cruzada con `build.sh` |
+| **Windows · Visual Studio** | Compilación con CMake + MSVC, `ctest` y prueba de humo **de solo lectura** con los servicios reales de la máquina de GitHub (`/export` y `/import` en modo simulación; no modifica ningún servicio) |
+
+Los dos `.exe` (MinGW y MSVC) quedan como artefactos descargables de cada ejecución, en la pestaña
+*Actions*. Un pull request no debería fusionarse si alguno de los trabajos está en rojo.
+
 ## Qué se ha probado y qué no
 
 | Prueba | Dónde | Resultado |
