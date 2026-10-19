@@ -24,10 +24,10 @@ struct DefaultInfo {
 // ---- Conversión de enumeraciones ----
 const wchar_t* StartModeToken(StartMode m);              // "Automatic", "AutomaticDelayed", ...
 StartMode StartModeFromToken(const std::wstring& s);     // acepta tokens ingleses y etiquetas en español
-std::wstring StartModeLabel(StartMode m, bool trigger);  // "Manual (desencadenar inicio)", ...
+std::wstring StartModeLabel(StartMode m, bool trigger);  // texto traducido (i18n)
 const wchar_t* RunStateToken(RunState s);                // "Running", "Stopped", ...
 RunState RunStateFromToken(const std::wstring& s);
-const wchar_t* RunStateLabel(RunState s);                // "En ejecución", "Detenido", ...
+std::wstring RunStateLabel(RunState s);                  // texto traducido (i18n)
 bool IsStoppedLike(RunState s);                          // Stopped / StopPending
 bool IsRunningLike(RunState s);                          // Running / StartPending / ContinuePending
 
@@ -36,7 +36,9 @@ bool IsRunningLike(RunState s);                          // Running / StartPendi
 // nombre de plantilla ("CDPUserSvc").
 std::wstring BaseServiceName(const std::wstring& name);
 const DefaultInfo* LookupDefault(const std::wstring& name);
-const wchar_t* LookupCritical(const std::wstring& name);  // motivo, o nullptr si no es crítico
+bool IsCritical(const std::wstring& name);
+std::wstring CriticalReason(const std::wstring& name);   // motivo traducido ("crit.<Nombre>")
+std::vector<std::wstring> CriticalNames();               // para tests de cobertura
 size_t DefaultTableSize();
 size_t CriticalTableSize();
 
@@ -61,6 +63,8 @@ struct SavedService {
 };
 
 // Genera CSV en UTF-8 con BOM, separador ';' (lo que espera Excel en español).
+// Las columnas *Label usan el idioma activo; las columnas StartType/State usan tokens en
+// inglés, independientes del idioma, que son las que se leen al restaurar.
 std::string WriteCsv(const std::vector<SavedService>& services);
 // Lee CSV (UTF-8 con/sin BOM o ANSI; separador ';', ',' o tabulador).
 bool ParseCsv(const std::string& data, std::vector<SavedService>& out, std::wstring& error);

@@ -4,6 +4,12 @@
 1 ICON "app.ico"
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "app.manifest"
 
+// Archivos de idioma (UTF-8) incrustados; ver src/i18n.hpp y src/lang_win.cpp
+LANG_EN    RCDATA "../lang/en.lang"
+LANG_ES    RCDATA "../lang/es.lang"
+LANG_FR    RCDATA "../lang/fr.lang"
+LANG_ZH_CN RCDATA "../lang/zh-CN.lang"
+
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION SG_VERSION_MAJOR,SG_VERSION_MINOR,SG_VERSION_PATCH,0
  PRODUCTVERSION SG_VERSION_MAJOR,SG_VERSION_MINOR,SG_VERSION_PATCH,0
@@ -15,9 +21,9 @@ VS_VERSION_INFO VERSIONINFO
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "0c0a04b0"
+        BLOCK "040904b0"
         BEGIN
-            VALUE "FileDescription", "ServiGestWin10 - Gestor masivo de servicios de Windows 10"
+            VALUE "FileDescription", "ServiGestWin10 - Bulk Windows service manager"
             VALUE "FileVersion", SG_VERSION_STR
             VALUE "InternalName", "ServiGestWin10"
             VALUE "OriginalFilename", "ServiGestWin10.exe"
@@ -27,6 +33,6 @@ BEGIN
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x0c0a, 1200
+        VALUE "Translation", 0x0409, 1200
     END
 END

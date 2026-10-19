@@ -1,8 +1,14 @@
 // Tests unitarios de la lógica portable de ServiGestWin10.
-// Compilar (Linux/MinGW/MSVC):  g++ -std=c++17 -I../src test_core.cpp ../src/core.cpp ../src/knowledge.cpp
+// Compilar (Linux/MinGW/MSVC):
+//   g++ -std=c++17 -Isrc tests/test_core.cpp src/core.cpp src/knowledge.cpp src/i18n.cpp
+// Ejecutar desde la raíz del repositorio (o pasar la carpeta de idiomas): test_core [lang]
 #include "core.hpp"
+#include "i18n.hpp"
 
 #include <cstdio>
+#include <fstream>
+#include <set>
+#include <sstream>
 #include <string>
 
 static int g_fail = 0, g_pass = 0;
@@ -57,10 +63,11 @@ static void TestKnowledge() {
     CHECK(d && d->mode == StartMode::Automatic);
     CHECK(LookupDefault(L"NoExisteEsteServicio") == nullptr);
 
-    CHECK(LookupCritical(L"RpcSs") != nullptr);
-    CHECK(LookupCritical(L"rpcss") != nullptr);
-    CHECK(LookupCritical(L"Spooler") == nullptr);
-    CHECK(LookupCritical(L"XblGameSave") == nullptr);
+    CHECK(IsCritical(L"RpcSs"));
+    CHECK(IsCritical(L"rpcss"));
+    CHECK(!IsCritical(L"Spooler"));
+    CHECK(!IsCritical(L"XblGameSave"));
+    CHECK(CriticalNames().size() == CriticalTableSize());
 
     // Toda entrada crítica debería tener modo por defecto conocido
     const wchar_t* crit[] = {L"RpcSs", L"DcomLaunch", L"ProfSvc", L"Appinfo", L"msiserver", L"Dhcp"};
@@ -186,13 +193,162 @@ static void TestPlan() {
     CHECK(!p2.notes.empty());
 }
 
-int main() {
+// ------------------------------------------------------------ i18n
+
+static std::string ReadFile(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
+}
+
+static std::string g_langDir = "lang";
+static const char* const kLangs[] = {"en", "es", "fr", "zh-CN"};
+
+static bool LoadAllCatalogs() {
+    bool ok = true;
+    for (const char* l : kLangs) {
+        const std::string data = ReadFile(g_langDir + "/" + l + ".lang");
+        if (data.empty()) { std::printf("No se encuentra %s/%s.lang\n", g_langDir.c_str(), l); ok = false; continue; }
+        i18n::Catalog c;
+        std::wstring err;
+        if (!c.Parse(data, &err)) { std::printf("Error en %s.lang\n", l); ok = false; }
+        i18n::RegisterCatalog(FromUtf8(l), std::move(c));
+    }
+    return ok;
+}
+
+static std::set<std::string> Placeholders(const std::wstring& s) {
+    std::set<std::string> out;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] != L'{') continue;
+        size_t j = i + 1;
+        std::string num;
+        while (j < s.size() && s[j] >= L'0' && s[j] <= L'9') num += static_cast<char>(s[j++]);
+        if (!num.empty() && j < s.size() && s[j] == L'}') out.insert(num);
+    }
+    return out;
+}
+
+static void TestI18nEngine() {
+    i18n::Catalog c;
+    std::wstring err;
+    CHECK(!c.Parse("\xEF\xBB\xBF# comentario\n@name = Prueba\na.b = Hola {0}\n  c = \\sx\\n\\t\\\\  \n\nmal formada\nd=e\n", &err));
+    CHECK(!err.empty());                     // la línea "mal formada" se informa...
+    CHECK(c.Size() == 3);                    // ...pero las correctas se cargan
+    CHECK(c.Meta("name") == L"Prueba");
+    CHECK(c.Find("a.b") && *c.Find("a.b") == L"Hola {0}");
+    CHECK(c.Find("c") && *c.Find("c") == L" x\n\t\\");
+    CHECK(c.Find("zz") == nullptr);
+
+    CHECK(i18n::Format(L"{1} y {0}", {L"A", L"B"}) == L"B y A");   // orden libre
+    CHECK(i18n::Format(L"{0}{0}", {L"x"}) == L"xx");
+    CHECK(i18n::Format(L"{{0}} {2}", {L"a"}) == L"{0} {2}");         // escape y marcador sin argumento
+    CHECK(i18n::Format(L"{x} {", {L"a"}) == L"{x} {");
+
+    CHECK(i18n::PluralCategory(L"en", 1) == i18n::Plural::One);
+    CHECK(i18n::PluralCategory(L"en", 0) == i18n::Plural::Other);
+    CHECK(i18n::PluralCategory(L"es", 2) == i18n::Plural::Other);
+    CHECK(i18n::PluralCategory(L"fr", 0) == i18n::Plural::One);      // en francés el 0 es singular
+    CHECK(i18n::PluralCategory(L"fr", 1) == i18n::Plural::One);
+    CHECK(i18n::PluralCategory(L"fr", 2) == i18n::Plural::Other);
+    CHECK(i18n::PluralCategory(L"zh-CN", 1) == i18n::Plural::Other); // el chino no tiene plural
+
+    CHECK(i18n::MatchSupported(L"es-ES") == L"es");
+    CHECK(i18n::MatchSupported(L"es-419") == L"es");
+    CHECK(i18n::MatchSupported(L"fr-CA") == L"fr");
+    CHECK(i18n::MatchSupported(L"en_GB") == L"en");
+    CHECK(i18n::MatchSupported(L"zh-CN") == L"zh-CN");
+    CHECK(i18n::MatchSupported(L"zh-Hans-SG") == L"zh-CN");
+    CHECK(i18n::MatchSupported(L"zh-TW").empty());                   // tradicional: no soportado
+    CHECK(i18n::MatchSupported(L"zh-Hant-HK").empty());
+    CHECK(i18n::MatchSupported(L"de-DE").empty());
+    CHECK(i18n::ResolveLanguage({L"de-DE", L"fr-FR", L"en-US"}) == L"fr");
+    CHECK(i18n::ResolveLanguage({L"zh-TW", L"en-US"}) == L"en");
+    CHECK(i18n::ResolveLanguage({L"ja-JP"}) == L"en");                // reserva
+    CHECK(i18n::ResolveLanguage({}) == L"en");
+}
+
+static void TestCatalogsConsistency() {
+    const i18n::Catalog* en = i18n::GetCatalog(L"en");
+    CHECK(en != nullptr);
+    if (!en) return;
+    for (const char* l : kLangs) {
+        const i18n::Catalog* c = i18n::GetCatalog(FromUtf8(l));
+        CHECK(c != nullptr);
+        if (!c) continue;
+        int missing = 0, extra = 0, badPh = 0;
+        for (const auto& k : en->Keys()) {
+            const std::wstring* v = c->Find(k);
+            if (!v) { ++missing; std::printf("  %s: falta %s\n", l, k.c_str()); continue; }
+            if (Placeholders(*v) != Placeholders(*en->Find(k))) { ++badPh; std::printf("  %s: marcadores en %s\n", l, k.c_str()); }
+        }
+        for (const auto& k : c->Keys())
+            if (!en->Find(k)) { ++extra; std::printf("  %s: sobra %s\n", l, k.c_str()); }
+        CHECK(missing == 0);
+        CHECK(extra == 0);
+        CHECK(badPh == 0);
+        // Todo servicio crítico tiene motivo en cada idioma
+        for (const auto& n : CriticalNames()) CHECK(c->Find("crit." + ToUtf8(n)) != nullptr);
+    }
+}
+
+static void TestLabelsAllLanguages() {
+    const StartMode modes[] = {StartMode::Automatic, StartMode::AutomaticDelayed, StartMode::Manual, StartMode::Disabled};
+    const RunState states[] = {RunState::Stopped, RunState::StartPending, RunState::StopPending, RunState::Running,
+                               RunState::ContinuePending, RunState::PausePending, RunState::Paused};
+    for (const char* l : kLangs) {
+        CHECK(i18n::SetActiveLanguage(FromUtf8(l)));
+        std::set<std::wstring> seen;
+        for (StartMode m : modes)
+            for (bool trig : {false, true}) {
+                const std::wstring label = StartModeLabel(m, trig);
+                CHECK(label.find(L'[') != 0);              // existe la clave
+                CHECK(StartModeFromToken(label) == m);     // la etiqueta se reconoce al leer un CSV
+                if (m != StartMode::Disabled) seen.insert(label);
+            }
+        CHECK(seen.size() == 6);                           // etiquetas distintas
+        for (RunState s : states) CHECK(RunStateFromToken(RunStateLabel(s)) == s);
+        CHECK(T("crit.RpcSs") == CriticalReason(L"RpcSs"));
+        // CSV escrito en este idioma -> se lee igual (tokens independientes del idioma)
+        std::vector<SavedService> in = {{L"Spooler", L"x", StartMode::AutomaticDelayed, RunState::Running},
+                                        {L"Fax", L"y", StartMode::Disabled, RunState::Stopped}};
+        std::vector<SavedService> out;
+        std::wstring err;
+        CHECK(ParseCsv(WriteCsv(in), out, err) && out.size() == 2 && out[0].mode == StartMode::AutomaticDelayed &&
+              out[1].state == RunState::Stopped);
+        // Plural y formato
+        const std::wstring one = P("log.loaded", 1), many = P("log.loaded", 5);
+        CHECK(one.find(L'1') != std::wstring::npos && many.find(L'5') != std::wstring::npos);
+        CHECK(F("err.withcode", {L"X", L"5"}).find(L"X") != std::wstring::npos);
+    }
+    // Clave inexistente: visible entre corchetes; con reserva al inglés si falta en el idioma activo
+    CHECK(i18n::SetActiveLanguage(L"es"));
+    CHECK(T("no.existe") == L"[no.existe]");
+    CHECK(!i18n::SetActiveLanguage(L"de"));
+    CHECK(i18n::ActiveLanguage() == L"es");
+    // Etiquetas de un idioma se reconocen aunque el activo sea otro
+    CHECK(StartModeFromToken(L"Automatique (début différé)") == StartMode::AutomaticDelayed);
+    CHECK(StartModeFromToken(L"自动(延迟启动)") == StartMode::AutomaticDelayed);
+    CHECK(StartModeFromToken(L"Désactivé") == StartMode::Disabled);
+    CHECK(StartModeFromToken(L"禁用") == StartMode::Disabled);
+    CHECK(RunStateFromToken(L"正在运行") == RunState::Running);
+    CHECK(RunStateFromToken(L"En cours d'exécution") == RunState::Running);
+}
+
+int main(int argc, char** argv) {
+    if (argc > 1) g_langDir = argv[1];
+    TestI18nEngine();
+    CHECK(LoadAllCatalogs());
+    CHECK(i18n::SetActiveLanguage(L"es"));  // los tests clásicos comprueban etiquetas en español
     TestTokens();
     TestKnowledge();
     TestUtf8();
     TestCsvRoundTrip();
     TestCsvVariants();
     TestPlan();
+    TestCatalogsConsistency();
+    TestLabelsAllLanguages();
     std::printf("Tests: %d OK, %d fallos\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }
