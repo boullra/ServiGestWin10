@@ -1,0 +1,318 @@
+# ServiGestWin10 - English (reference language and fallback)
+#
+# Format: one "key = text" entry per line, UTF-8. Lines starting with # are comments.
+# {0}, {1}... are placeholders: keep them all (the order may change to suit the language).
+# Escapes: \n new line, \t tab, \s significant space (leading/trailing spaces are trimmed).
+# Keys ending in .one / .other are plural forms (.one for 1; in French also for 0).
+# "&" marks the keyboard shortcut letter in menus.
+@language = en
+@name = English
+
+app.title = ServiGestWin10 - Bulk Windows service manager
+app.title.readonly = [READ-ONLY - no administrator privileges]
+
+# ---- Menus
+menu.file = &File
+menu.file.save = &Save state of all services...
+menu.file.restore = &Restore state from file...
+menu.file.elevate = Restart as &administrator
+menu.file.exit = E&xit
+menu.view = &View
+menu.view.refresh = &Refresh
+menu.view.find = &Search
+menu.view.clearlog = &Clear log
+menu.sel = &Selection
+menu.sel.checkall = &Check all shown
+menu.sel.uncheckall = &Uncheck all shown
+menu.sel.invert = &Invert checks of shown
+menu.sel.checksel = Check &selected rows
+menu.sel.unchecksel = Uncheck s&elected rows
+menu.sel.uncheckcrit = Uncheck &critical services
+menu.svc = S&ervices
+menu.svc.applymode = Apply startup &type to checked
+menu.svc.start = &Start checked
+menu.svc.stop = S&top checked
+menu.svc.restart = &Restart checked
+menu.svc.cancel = &Cancel current operation
+menu.language = &Language
+menu.language.auto = &Automatic (Windows language)
+menu.help = &Help
+menu.help.legend = Colour &legend
+menu.help.about = &About...
+
+# ---- Toolbar
+btn.refresh = Refresh (F5)
+btn.checkall = Check all
+btn.uncheckall = Uncheck all
+btn.invert = Invert checks
+btn.applymode = Apply to checked
+btn.start = Start checked
+btn.stop = Stop checked
+btn.restart = Restart checked
+btn.save = Save state...
+btn.restore = Restore state...
+btn.cancel = Cancel
+lbl.search = Search:
+search.cue = name, service name or description
+lbl.mode = Startup type:
+
+# ---- Columns
+col.display = Name
+col.name = Service name
+col.desc = Description
+col.state = Status
+col.start = Startup type
+col.default = Windows 10 default
+col.logon = Log on as
+col.note = Critical / note
+
+# ---- Startup types and states (same wording as services.msc)
+mode.auto = Automatic
+mode.auto.trigger = Automatic (Trigger Start)
+mode.delayed = Automatic (Delayed Start)
+mode.delayed.trigger = Automatic (Delayed Start, Trigger Start)
+mode.manual = Manual
+mode.manual.trigger = Manual (Trigger Start)
+mode.disabled = Disabled
+mode.boot = Boot (driver)
+mode.system = System (driver)
+mode.unknown = Unknown
+state.stopped = Stopped
+state.startpending = Starting
+state.stoppending = Stopping
+state.running = Running
+state.continuepending = Resuming
+state.pausepending = Pausing
+state.paused = Paused
+state.unknown = Unknown
+
+# ---- Cells
+default.unknown = Unknown
+config.noaccess = (no access)
+logon.localsystem = Local System
+logon.localservice = Local Service
+logon.networkservice = Network Service
+note.critical = CRITICAL: {0}
+note.protected = Protected by Windows (normally cannot be changed)
+note.userinstance = Per-user service instance
+tag.critical = [CRITICAL]
+crit.errorcontrol = Windows marks it as critical for booting (ErrorControl = Critical)
+
+# ---- Critical services: why they must never be stopped or disabled
+crit.RpcSs = Remote Procedure Call (RPC): core of COM/RPC, Windows stops working
+crit.RpcEptMapper = RPC Endpoint Mapper: essential for RPC
+crit.DcomLaunch = DCOM Server Process Launcher: core of COM
+crit.LSM = Local Session Manager: without it there are no user sessions
+crit.BrokerInfrastructure = Background Tasks Infrastructure: required by the system and apps
+crit.SamSs = Security Accounts Manager: needed to sign in
+crit.ProfSvc = User Profile Service: without it nobody can sign in
+crit.UserManager = User Manager: Start menu, sign-in and apps
+crit.PlugPlay = Plug and Play: hardware detection and configuration
+crit.Power = Power: system power management
+crit.EventLog = Windows Event Log: many services depend on it
+crit.Schedule = Task Scheduler: runs system maintenance tasks
+crit.Winmgmt = Windows Management Instrumentation (WMI)
+crit.gpsvc = Group Policy Client: policies and security settings
+crit.CoreMessagingRegistrar = CoreMessaging: internal user-interface communication
+crit.SystemEventsBroker = System Events Broker: triggers for tasks and apps
+crit.TimeBrokerSvc = Time Broker: triggers for background tasks
+crit.StateRepository = State Repository Service: Start menu and apps
+crit.CryptSvc = Cryptographic Services: signatures, certificates and Windows Update
+crit.KeyIso = CNG Key Isolation: credentials and encryption
+crit.VaultSvc = Credential Manager: sign-in for apps and services
+crit.Appinfo = Application Information: UAC elevation (Run as administrator)
+crit.EventSystem = COM+ Event System: required by many services
+crit.Dhcp = DHCP Client: network configuration (also used with a static IP)
+crit.Dnscache = DNS Client: name resolution
+crit.nsi = Network Store Interface Service: foundation of networking
+crit.NlaSvc = Network Location Awareness: network detection
+crit.netprofm = Network List Service: network profiles
+crit.Wcmsvc = Windows Connection Manager: network connections
+crit.BFE = Base Filtering Engine: firewall, IPsec and network security
+crit.mpssvc = Windows Defender Firewall: protection, and required by many apps
+crit.msiserver = Windows Installer: installing, repairing and removing programs
+crit.TrustedInstaller = Windows Modules Installer: updates and components
+crit.sppsvc = Software Protection: Windows licensing and activation
+
+# ---- Status bar
+status.counts = Services: {0}   Shown: {1}   Checked: {2}
+status.checkedcrit.one = \s({0} critical)
+status.checkedcrit.other = \s({0} critical)
+status.running = \s\s\sRunning: {0}   Critical: {1}
+status.admin = Administrator
+status.readonly = READ-ONLY (no privileges)
+status.saved = State saved
+status.progress = Processing {0}/{1}: {2}
+status.done = Finished: {0} succeeded, {1} failed.
+
+# ---- Log
+log.startup.admin = ServiGestWin10 {0} - running with administrator privileges. Language: {1}.
+log.startup.readonly = ServiGestWin10 {0} - WITHOUT administrator privileges: read-only (File > Restart as administrator). Language: {1}.
+log.loaded.one = Loaded {0} service.
+log.loaded.other = Loaded {0} services.
+log.refreshed.one = List refreshed: {0} service.
+log.refreshed.other = List refreshed: {0} services.
+log.errenum = ERROR listing the services: {0}
+log.elevatefail = Could not restart as administrator: {0}
+log.jobheader.one = === {1} ({0} operation) ===
+log.jobheader.other = === {1} ({0} operations) ===
+log.cancelled.one = Operation cancelled by the user. {0} operation left undone.
+log.cancelled.other = Operation cancelled by the user. {0} operations left undone.
+log.cancelling = Cancelling... (the current service operation will finish first)
+log.result.ok = [OK]    {0} · {1} [{2}]: {3}
+log.result.err = [ERROR] {0} · {1} [{2}]: {3}
+log.plan = \s\splan: {0}
+log.skippedcrit.one = Skipped because it is critical: {0} service.
+log.skippedcrit.other = Skipped because they are critical: {0} services.
+log.opsomitted.one = {0} operation skipped because it affects critical services.
+log.opsomitted.other = {0} operations skipped because they affect critical services.
+log.nothing = Nothing left to do.
+log.uncheckedcrit.one = Unchecked {0} critical service.
+log.uncheckedcrit.other = Unchecked {0} critical services.
+log.saved.one = State of {0} service saved to {1}
+log.saved.other = State of {0} services saved to {1}
+log.restoreplan.one = Restore plan from {1}: {0} service in the file.
+log.restoreplan.other = Restore plan from {1}: {0} services in the file.
+log.note = \s\sNote: {0}
+log.missing = \s\sNot present on this computer: {0}
+log.langchanged = Language: {0}
+log.langwarning = Language files: {0}
+
+# ---- Lines in dialogs and log
+line.mode = {0}{1} ({2}): {3} → {4}
+line.state = {0}{1} ({2}) - {3}
+line.restore = {0}{1}: {2} ({3}) {4}
+
+# ---- Operations
+op.name.setmode = Startup type
+op.name.start = Start
+op.name.stop = Stop
+op.modeset = startup type → {0}
+op.started = started
+op.stopped = stopped
+op.stopped.withdeps.one = {1} (together with {0} dependent service)
+op.stopped.withdeps.other = {1} (together with {0} dependent services)
+op.already.running = was already running
+op.already.stopped = was already stopped
+op.already.state = was already {0}
+op.stopping.dependent = \s\s\s\s· stopping dependent service {0}...
+op.err.open = Could not open: {0}
+op.err.badmode = invalid startup type
+op.err.delayed = set to Automatic, but delayed start could not be enabled: {0}
+op.err.disabled = it is Disabled; change its startup type first ({0})
+op.err.exited.code = started but stopped immediately: {0}
+op.err.exited.specific = started but stopped immediately (service-specific code {0})
+op.err.exited.trigger = started but stopped immediately (normal for "trigger start" services that have nothing to do)
+op.err.starttimeout = did not start in time (status: {0})
+op.err.stoptimeout = did not stop in time (status: {0})
+op.err.notstoppable = the service does not accept the stop command in its current state
+op.err.dependents = has running dependent services: {0}
+op.err.critdependent = the critical service {0} depends on it and was skipped; not stopping
+op.err.dependentfail = could not stop the dependent service {0}: {1}
+op.err.unknownop = unknown operation
+err.unknown = Unknown error
+err.withcode = {0} (code {1})
+err.filetoobig = file too large
+
+# ---- Restore plan
+plan.note.instance = {0} → {1} (per-user instance)
+plan.note.disabledrunning = {0}: was running but its saved startup type is Disabled; it will not be started.
+
+# ---- Dialogs
+dlg.continue = Continue
+dlg.critical.skip = Skip critical services and continue\nRecommended. Critical services (in red) will not be touched.
+dlg.critical.include = Include critical services too\nDangerous: Windows may become unstable, lose network access or fail to boot.
+dlg.expand.hide = Hide the list
+dlg.expand.show = Show the affected services
+dlg.confirmcrit.title = ServiGestWin10 - Confirmation
+dlg.confirmcrit = You chose to also modify CRITICAL services.\n\nThis may leave Windows unstable, without network access, unable to sign in or unable to boot.\n\nAre you absolutely sure?
+dlg.fallback.skipcrit = \n\nCritical services will be skipped. Continue?
+dlg.needadmin = This operation requires administrator privileges.\n\nRestart ServiGestWin10 as administrator?
+dlg.list.more.one = ... and {0} more (the full list is in the log).
+dlg.list.more.other = ... and {0} more (the full list is in the log).
+dlg.hidden.one = Note: {0} of the checked services is hidden by the search filter.
+dlg.hidden.other = Note: {0} of the checked services are hidden by the search filter.
+dlg.mode.title = Change the startup type to "{0}"?
+dlg.mode.count.one = Services to modify: {0}
+dlg.mode.count.other = Services to modify: {0}
+dlg.mode.same.one = {0} already had that startup type (skipped).
+dlg.mode.same.other = {0} already had that startup type (skipped).
+dlg.mode.critical.one = {0} is a CRITICAL service and this change may stop Windows from working properly.
+dlg.mode.critical.other = {0} are CRITICAL services and this change may stop Windows from working properly.
+dlg.ss.title.start = Start the selected services?
+dlg.ss.title.stop = Stop the selected services?
+dlg.ss.title.restart = Restart the selected services?
+dlg.ss.count.start.one = Services to start: {0}
+dlg.ss.count.start.other = Services to start: {0}
+dlg.ss.count.stop.one = Services to stop: {0}
+dlg.ss.count.stop.other = Services to stop: {0}
+dlg.ss.count.restart.one = Services to restart: {0}
+dlg.ss.count.restart.other = Services to restart: {0}
+dlg.ss.skip.start.one = {0} already running is skipped.
+dlg.ss.skip.start.other = {0} already running are skipped.
+dlg.ss.skip.stop.one = {0} already stopped is skipped.
+dlg.ss.skip.stop.other = {0} already stopped are skipped.
+dlg.ss.disabled.one = {0} is Disabled and cannot start until its startup type is changed.
+dlg.ss.disabled.other = {0} are Disabled and cannot start until their startup type is changed.
+dlg.ss.critical.one = {0} is a CRITICAL service; stopping it may freeze or destabilise Windows.
+dlg.ss.critical.other = {0} are CRITICAL services; stopping them may freeze or destabilise Windows.
+dlg.ss.deps = Also stop the services that depend on them
+dlg.restore.title = Restore the saved state of the services?
+dlg.restore.summary = Startup type changes: {0}\nServices to stop: {1}\nServices to start: {2}\nUnchanged: {3}\nNot present on this computer: {4}
+dlg.restore.critical.one = {0} operation negatively affects CRITICAL services.
+dlg.restore.critical.other = {0} operations negatively affect CRITICAL services.
+dlg.restore.deps = When stopping, also stop dependent services
+
+# ---- Jobs
+job.mode = Change startup type to {0}
+job.start = Start services
+job.stop = Stop services
+job.restart = Restart services
+job.restore = Restore state from file
+
+# ---- Messages
+msg.nochecked = No services are checked.
+msg.allsame = All checked services already have that startup type.
+msg.allrunning = All checked services are already running.
+msg.allstopped = All checked services are already stopped.
+msg.savefail = Could not save the file:\n{0}
+msg.readfail = Could not read the file:\n{0}
+msg.restore.nochange = The current state already matches the file.\n\nUnchanged: {0}\nNot present on this computer: {1}
+msg.closebusy = An operation is in progress. Cancel it and exit?\n(The current service operation will finish first.)
+
+# ---- Files
+save.title = Save the current state of all services
+restore.title = Restore the state of the services from a file
+file.filter.savecsv = Semicolon-separated CSV (*.csv)
+file.filter.csvopen = CSV (*.csv)
+file.filter.all = All files (*.*)
+csv.fileprefix = Services
+csv.err.empty = The file is empty.
+csv.err.header = Unrecognised header. The columns ServiceName, StartType and State are expected.
+csv.err.noservices = The file contains no services.
+
+# ---- Context menu
+ctx.checksel = Check selected
+ctx.unchecksel = Uncheck selected
+ctx.start = Start selected
+ctx.stop = Stop selected
+ctx.restart = Restart selected
+ctx.mode = Apply the chosen startup type to the selected
+ctx.copyname = Copy service name
+
+# ---- Help
+legend.title = ServiGestWin10 - Legend
+legend.text = Rows in RED (with a red mark on the left):\nServices that must NEVER be stopped or disabled. The reason is shown in the "Critical / note" column. When you try to change them, the program asks for confirmation and offers to skip them.\n\nORANGE text in "Windows 10 default":\nThe current startup type differs from the Windows 10 default.\n\n"Windows 10 default":\nValue from a clean installation of Windows 10 Pro 22H2 (source: winhelponline.com). It may vary with the edition, version, hardware and installed software. "Unknown" = third-party service or not in the table.\n\nHeader check box: checks or unchecks all the services shown.
+about.title = About ServiGestWin10
+about.text = ServiGestWin10 {0}\nBulk Windows service manager\n\nC++17 / native Win32 API, no external dependencies.\n\nDefault startup table: {1} services (Windows 10 Pro 22H2).\nKnown critical services: {2}.\nInterface language: {3}.\n\nCommand line (administrator console):\n  ServiGestWin10.exe /export file.csv\n  ServiGestWin10.exe /import file.csv            (dry run)\n  ServiGestWin10.exe /import file.csv /apply\n  ... /apply /includecritical   (critical services too)\n  ... /lang:en|es|fr|zh-CN       (interface language)
+
+# ---- Command line
+cli.usage = ServiGestWin10 {0} - command-line usage:\n  /export file.csv                    saves the state of all services\n  /import file.csv                    shows what would change (dry run)\n  /import file.csv /apply             applies the state (requires administrator)\n  /import file.csv /apply /includecritical   also applies dangerous changes to critical services\n  /lang:en|es|fr|zh-CN                interface language
+cli.exported.one = Exported {0} service to {1}
+cli.exported.other = Exported {0} services to {1}
+cli.errwrite = ERROR writing {0}: {1}
+cli.errread = ERROR reading {0}: {1}
+cli.summary = Services in the file: {0}; unchanged: {1}; not found: {2}; operations: {3}
+cli.simulation = (Dry run. Add /apply to apply the changes.)
+cli.needadmin = ERROR: administrator privileges are required (elevated console).
+cli.skipped = [SKIPPED] {0}: {1} (critical)

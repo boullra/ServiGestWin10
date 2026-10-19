@@ -1,0 +1,314 @@
+# ServiGestWin10 - 简体中文
+# 格式：参见 en.lang。请保留所有占位符 {0}、{1}……
+# 商业发布前请由母语人士审校此译文。
+@language = zh-CN
+@name = 简体中文
+
+app.title = ServiGestWin10 - Windows 服务批量管理器
+app.title.readonly = [只读 - 无管理员权限]
+
+# ---- 菜单
+menu.file = 文件(&F)
+menu.file.save = 保存所有服务的状态(&S)...
+menu.file.restore = 从文件还原状态(&R)...
+menu.file.elevate = 以管理员身份重新启动(&A)
+menu.file.exit = 退出(&X)
+menu.view = 查看(&V)
+menu.view.refresh = 刷新(&R)
+menu.view.find = 搜索(&S)
+menu.view.clearlog = 清除日志(&C)
+menu.sel = 选择(&S)
+menu.sel.checkall = 勾选所有显示的服务(&C)
+menu.sel.uncheckall = 取消勾选所有显示的服务(&U)
+menu.sel.invert = 反转显示的服务的勾选(&I)
+menu.sel.checksel = 勾选选定的行(&S)
+menu.sel.unchecksel = 取消勾选选定的行(&E)
+menu.sel.uncheckcrit = 取消勾选关键服务(&K)
+menu.svc = 服务(&E)
+menu.svc.applymode = 将启动类型应用于已勾选的服务(&T)
+menu.svc.start = 启动已勾选的服务(&S)
+menu.svc.stop = 停止已勾选的服务(&O)
+menu.svc.restart = 重新启动已勾选的服务(&R)
+menu.svc.cancel = 取消当前操作(&C)
+menu.language = 语言 / Language(&L)
+menu.language.auto = 自动（Windows 语言）(&A)
+menu.help = 帮助(&H)
+menu.help.legend = 颜色说明(&L)
+menu.help.about = 关于(&A)...
+
+# ---- 工具栏
+btn.refresh = 刷新 (F5)
+btn.checkall = 全部勾选
+btn.uncheckall = 全部取消
+btn.invert = 反转勾选
+btn.applymode = 应用于已勾选项
+btn.start = 启动已勾选项
+btn.stop = 停止已勾选项
+btn.restart = 重新启动已勾选项
+btn.save = 保存状态...
+btn.restore = 还原状态...
+btn.cancel = 取消
+lbl.search = 搜索：
+search.cue = 名称、服务名称或描述
+lbl.mode = 启动类型：
+
+# ---- 列
+col.display = 名称
+col.name = 服务名称
+col.desc = 描述
+col.state = 状态
+col.start = 启动类型
+col.default = Windows 10 默认值
+col.logon = 登录为
+col.note = 关键 / 备注
+
+# ---- 启动类型和状态（与 services.msc 一致）
+mode.auto = 自动
+mode.auto.trigger = 自动(触发器启动)
+mode.delayed = 自动(延迟启动)
+mode.delayed.trigger = 自动(延迟启动，触发器启动)
+mode.manual = 手动
+mode.manual.trigger = 手动(触发器启动)
+mode.disabled = 禁用
+mode.boot = 引导（驱动程序）
+mode.system = 系统（驱动程序）
+mode.unknown = 未知
+state.stopped = 已停止
+state.startpending = 正在启动
+state.stoppending = 正在停止
+state.running = 正在运行
+state.continuepending = 正在继续
+state.pausepending = 正在暂停
+state.paused = 已暂停
+state.unknown = 未知
+
+# ---- 单元格
+default.unknown = 未知
+config.noaccess = （无访问权限）
+logon.localsystem = 本地系统
+logon.localservice = 本地服务
+logon.networkservice = 网络服务
+note.critical = 关键：{0}
+note.protected = 受 Windows 保护（通常无法修改）
+note.userinstance = 每用户服务实例
+tag.critical = [关键]
+crit.errorcontrol = Windows 将其标记为启动关键服务（ErrorControl = Critical）
+
+# ---- 关键服务
+crit.RpcSs = 远程过程调用 (RPC)：COM/RPC 的核心，停止后 Windows 无法运行
+crit.RpcEptMapper = RPC Endpoint Mapper：RPC 必不可少
+crit.DcomLaunch = DCOM Server Process Launcher：COM 的核心
+crit.LSM = 本地会话管理器：没有它就没有用户会话
+crit.BrokerInfrastructure = 后台任务基础结构服务：系统和应用必需
+crit.SamSs = 安全帐户管理器：登录所必需
+crit.ProfSvc = 用户配置文件服务：没有它将无法登录
+crit.UserManager = 用户管理器：开始菜单、登录和应用
+crit.PlugPlay = 即插即用：硬件检测和配置
+crit.Power = 电源：系统电源管理
+crit.EventLog = Windows 事件日志：许多服务依赖于它
+crit.Schedule = 任务计划程序：运行系统维护任务
+crit.Winmgmt = Windows 管理规范 (WMI)
+crit.gpsvc = 组策略客户端：策略和安全设置
+crit.CoreMessagingRegistrar = CoreMessaging：用户界面的内部通信
+crit.SystemEventsBroker = 系统事件代理：任务和应用的触发器
+crit.TimeBrokerSvc = 时间代理：后台任务的触发器
+crit.StateRepository = 状态存储库服务：开始菜单和应用
+crit.CryptSvc = 加密服务：签名、证书和 Windows 更新
+crit.KeyIso = CNG 密钥隔离：凭据和加密
+crit.VaultSvc = 凭据管理器：应用和服务的登录
+crit.Appinfo = 应用程序信息：UAC 提升（以管理员身份运行）
+crit.EventSystem = COM+ 事件系统：许多服务需要它
+crit.Dhcp = DHCP 客户端：网络配置（使用固定 IP 时也需要）
+crit.Dnscache = DNS 客户端：名称解析
+crit.nsi = 网络存储接口服务：网络的基础
+crit.NlaSvc = 网络位置感知：网络检测
+crit.netprofm = 网络列表服务：网络配置文件
+crit.Wcmsvc = Windows 连接管理器：网络连接
+crit.BFE = 基本筛选引擎：防火墙、IPsec 和网络安全
+crit.mpssvc = Windows Defender 防火墙：安全防护，许多应用也需要它
+crit.msiserver = Windows Installer：安装、修复和卸载程序
+crit.TrustedInstaller = Windows 模块安装程序：更新和组件
+crit.sppsvc = 软件保护：Windows 许可和激活
+
+# ---- 状态栏
+status.counts = 服务：{0}   显示：{1}   已勾选：{2}
+status.checkedcrit.one = （{0} 个关键）
+status.checkedcrit.other = （{0} 个关键）
+status.running = \s\s\s正在运行：{0}   关键：{1}
+status.admin = 管理员
+status.readonly = 只读（无权限）
+status.saved = 状态已保存
+status.progress = 正在处理 {0}/{1}：{2}
+status.done = 完成：{0} 项成功，{1} 项失败。
+
+# ---- 日志
+log.startup.admin = ServiGestWin10 {0} - 正以管理员权限运行。语言：{1}。
+log.startup.readonly = ServiGestWin10 {0} - 无管理员权限：只读模式（文件 > 以管理员身份重新启动）。语言：{1}。
+log.loaded.one = 已加载 {0} 个服务。
+log.loaded.other = 已加载 {0} 个服务。
+log.refreshed.one = 列表已刷新：{0} 个服务。
+log.refreshed.other = 列表已刷新：{0} 个服务。
+log.errenum = 枚举服务时出错：{0}
+log.elevatefail = 无法以管理员身份重新启动：{0}
+log.jobheader.one = === {1}（{0} 项操作）===
+log.jobheader.other = === {1}（{0} 项操作）===
+log.cancelled.one = 操作已被用户取消。还有 {0} 项操作未执行。
+log.cancelled.other = 操作已被用户取消。还有 {0} 项操作未执行。
+log.cancelling = 正在取消……（当前服务的操作将先完成）
+log.result.ok = [成功] {0} · {1} [{2}]：{3}
+log.result.err = [错误] {0} · {1} [{2}]：{3}
+log.plan = \s\s计划：{0}
+log.skippedcrit.one = 因属于关键服务而跳过：{0} 个服务。
+log.skippedcrit.other = 因属于关键服务而跳过：{0} 个服务。
+log.opsomitted.one = 因影响关键服务而跳过 {0} 项操作。
+log.opsomitted.other = 因影响关键服务而跳过 {0} 项操作。
+log.nothing = 没有需要执行的操作。
+log.uncheckedcrit.one = 已取消勾选 {0} 个关键服务。
+log.uncheckedcrit.other = 已取消勾选 {0} 个关键服务。
+log.saved.one = {0} 个服务的状态已保存到 {1}
+log.saved.other = {0} 个服务的状态已保存到 {1}
+log.restoreplan.one = 从 {1} 还原的计划：文件中有 {0} 个服务。
+log.restoreplan.other = 从 {1} 还原的计划：文件中有 {0} 个服务。
+log.note = \s\s注意：{0}
+log.missing = \s\s此计算机上不存在：{0}
+log.langchanged = 语言：{0}
+log.langwarning = 语言文件：{0}
+
+# ---- 对话框和日志中的行
+line.mode = {0}{1} ({2})：{3} → {4}
+line.state = {0}{1} ({2}) - {3}
+line.restore = {0}{1}：{2} ({3}) {4}
+
+# ---- 操作
+op.name.setmode = 启动类型
+op.name.start = 启动
+op.name.stop = 停止
+op.modeset = 启动类型 → {0}
+op.started = 已启动
+op.stopped = 已停止
+op.stopped.withdeps.one = {1}（连同 {0} 个依赖服务）
+op.stopped.withdeps.other = {1}（连同 {0} 个依赖服务）
+op.already.running = 已在运行
+op.already.stopped = 已处于停止状态
+op.already.state = 已处于此状态：{0}
+op.stopping.dependent = \s\s\s\s· 正在停止依赖服务 {0}……
+op.err.open = 无法打开：{0}
+op.err.badmode = 启动类型无效
+op.err.delayed = 已设为自动，但无法启用延迟启动：{0}
+op.err.disabled = 该服务已禁用；请先更改其启动类型（{0}）
+op.err.exited.code = 启动后立即停止：{0}
+op.err.exited.specific = 启动后立即停止（服务特定代码 {0}）
+op.err.exited.trigger = 启动后立即停止（对于没有任务的"触发器启动"服务，这是正常现象）
+op.err.starttimeout = 未能及时启动（状态：{0}）
+op.err.stoptimeout = 未能及时停止（状态：{0}）
+op.err.notstoppable = 该服务在当前状态下不接受停止命令
+op.err.dependents = 有正在运行的依赖服务：{0}
+op.err.critdependent = 关键服务 {0} 依赖于它且已被跳过；不停止
+op.err.dependentfail = 无法停止依赖服务 {0}：{1}
+op.err.unknownop = 未知操作
+err.unknown = 未知错误
+err.withcode = {0}（代码 {1}）
+err.filetoobig = 文件过大
+
+# ---- 还原计划
+plan.note.instance = {0} → {1}（每用户实例）
+plan.note.disabledrunning = {0}：原先正在运行，但保存的启动类型为禁用；不会启动它。
+
+# ---- 对话框
+dlg.continue = 继续
+dlg.critical.skip = 跳过关键服务并继续\n推荐。不会改动关键服务（红色）。
+dlg.critical.include = 同时包括关键服务\n危险：Windows 可能变得不稳定、断网或无法启动。
+dlg.expand.hide = 隐藏列表
+dlg.expand.show = 显示受影响的服务
+dlg.confirmcrit.title = ServiGestWin10 - 确认
+dlg.confirmcrit = 你选择了同时修改关键服务。\n\n这可能导致 Windows 不稳定、断网、无法登录或无法启动。\n\n你确定要继续吗？
+dlg.fallback.skipcrit = \n\n将跳过关键服务。是否继续？
+dlg.needadmin = 此操作需要管理员权限。\n\n是否以管理员身份重新启动 ServiGestWin10？
+dlg.list.more.one = ……另有 {0} 项（完整列表见日志）。
+dlg.list.more.other = ……另有 {0} 项（完整列表见日志）。
+dlg.hidden.one = 注意：已勾选的服务中有 {0} 个被搜索筛选隐藏。
+dlg.hidden.other = 注意：已勾选的服务中有 {0} 个被搜索筛选隐藏。
+dlg.mode.title = 将启动类型更改为"{0}"？
+dlg.mode.count.one = 要修改的服务：{0}
+dlg.mode.count.other = 要修改的服务：{0}
+dlg.mode.same.one = 有 {0} 个服务已是该启动类型（跳过）。
+dlg.mode.same.other = 有 {0} 个服务已是该启动类型（跳过）。
+dlg.mode.critical.one = 其中 {0} 个是关键服务，此更改可能导致 Windows 无法正常工作。
+dlg.mode.critical.other = 其中 {0} 个是关键服务，此更改可能导致 Windows 无法正常工作。
+dlg.ss.title.start = 启动所选服务？
+dlg.ss.title.stop = 停止所选服务？
+dlg.ss.title.restart = 重新启动所选服务？
+dlg.ss.count.start.one = 要启动的服务：{0}
+dlg.ss.count.start.other = 要启动的服务：{0}
+dlg.ss.count.stop.one = 要停止的服务：{0}
+dlg.ss.count.stop.other = 要停止的服务：{0}
+dlg.ss.count.restart.one = 要重新启动的服务：{0}
+dlg.ss.count.restart.other = 要重新启动的服务：{0}
+dlg.ss.skip.start.one = 跳过 {0} 个已在运行的服务。
+dlg.ss.skip.start.other = 跳过 {0} 个已在运行的服务。
+dlg.ss.skip.stop.one = 跳过 {0} 个已停止的服务。
+dlg.ss.skip.stop.other = 跳过 {0} 个已停止的服务。
+dlg.ss.disabled.one = 有 {0} 个服务已禁用，更改其启动类型前无法启动。
+dlg.ss.disabled.other = 有 {0} 个服务已禁用，更改其启动类型前无法启动。
+dlg.ss.critical.one = 其中 {0} 个是关键服务；停止它们可能导致 Windows 卡死或不稳定。
+dlg.ss.critical.other = 其中 {0} 个是关键服务；停止它们可能导致 Windows 卡死或不稳定。
+dlg.ss.deps = 同时停止依赖于它们的服务
+dlg.restore.title = 还原已保存的服务状态？
+dlg.restore.summary = 启动类型更改：{0}\n要停止的服务：{1}\n要启动的服务：{2}\n无变化：{3}\n此计算机上不存在：{4}
+dlg.restore.critical.one = 有 {0} 项操作会对关键服务产生不利影响。
+dlg.restore.critical.other = 有 {0} 项操作会对关键服务产生不利影响。
+dlg.restore.deps = 停止服务时，同时停止依赖服务
+
+# ---- 任务
+job.mode = 将启动类型更改为 {0}
+job.start = 启动服务
+job.stop = 停止服务
+job.restart = 重新启动服务
+job.restore = 从文件还原状态
+
+# ---- 消息
+msg.nochecked = 没有勾选任何服务。
+msg.allsame = 所有已勾选的服务都已是该启动类型。
+msg.allrunning = 所有已勾选的服务都已在运行。
+msg.allstopped = 所有已勾选的服务都已停止。
+msg.savefail = 无法保存文件：\n{0}
+msg.readfail = 无法读取文件：\n{0}
+msg.restore.nochange = 当前状态已与文件一致。\n\n无变化：{0}\n此计算机上不存在：{1}
+msg.closebusy = 有操作正在进行。是否取消并退出？\n（当前服务的操作将先完成。）
+
+# ---- 文件
+save.title = 保存所有服务的当前状态
+restore.title = 从文件还原服务状态
+file.filter.savecsv = 以分号分隔的 CSV (*.csv)
+file.filter.csvopen = CSV (*.csv)
+file.filter.all = 所有文件 (*.*)
+csv.fileprefix = Services
+csv.err.empty = 文件为空。
+csv.err.header = 无法识别的标题行。需要 ServiceName、StartType 和 State 列。
+csv.err.noservices = 文件中没有任何服务。
+
+# ---- 右键菜单
+ctx.checksel = 勾选选定项
+ctx.unchecksel = 取消勾选选定项
+ctx.start = 启动选定项
+ctx.stop = 停止选定项
+ctx.restart = 重新启动选定项
+ctx.mode = 将所选启动类型应用于选定项
+ctx.copyname = 复制服务名称
+
+# ---- 帮助
+legend.title = ServiGestWin10 - 说明
+legend.text = 红色行（左侧带红色标记）：\n绝不应停止或禁用的服务。原因显示在"关键 / 备注"列中。尝试修改它们时，程序会要求确认并建议跳过。\n\n"Windows 10 默认值"中的橙色文字：\n当前启动类型与 Windows 10 的默认值不同。\n\n"Windows 10 默认值"：\n取自 Windows 10 专业版 22H2 全新安装的值（来源：winhelponline.com）。可能因版本、硬件和已安装的软件而异。"未知" = 第三方服务或表中未收录的服务。\n\n标题行中的复选框：勾选或取消勾选所有显示的服务。
+about.title = 关于 ServiGestWin10
+about.text = ServiGestWin10 {0}\nWindows 服务批量管理器\n\nC++17 / 原生 Win32 API，无外部依赖。\n\n默认启动类型表：{1} 个服务（Windows 10 专业版 22H2）。\n已知关键服务：{2} 个。\n界面语言：{3}。\n\n命令行（管理员控制台）：\n  ServiGestWin10.exe /export 文件.csv\n  ServiGestWin10.exe /import 文件.csv            （模拟运行）\n  ServiGestWin10.exe /import 文件.csv /apply\n  ... /apply /includecritical   （包括关键服务）\n  ... /lang:en|es|fr|zh-CN       （界面语言）
+
+# ---- 命令行
+cli.usage = ServiGestWin10 {0} - 命令行用法：\n  /export 文件.csv                    保存所有服务的状态\n  /import 文件.csv                    显示将会更改的内容（模拟运行）\n  /import 文件.csv /apply             应用该状态（需要管理员权限）\n  /import 文件.csv /apply /includecritical   同时对关键服务应用危险更改\n  /lang:en|es|fr|zh-CN                界面语言
+cli.exported.one = 已将 {0} 个服务导出到 {1}
+cli.exported.other = 已将 {0} 个服务导出到 {1}
+cli.errwrite = 写入 {0} 时出错：{1}
+cli.errread = 读取 {0} 时出错：{1}
+cli.summary = 文件中的服务：{0}；无变化：{1}；未找到：{2}；操作：{3}
+cli.simulation = （模拟运行。添加 /apply 以应用更改。）
+cli.needadmin = 错误：需要管理员权限（提升的控制台）。
+cli.skipped = [已跳过] {0}：{1}（关键）

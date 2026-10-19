@@ -1,0 +1,313 @@
+# ServiGestWin10 - Español
+# Formato: ver en.lang. Conservar todos los marcadores {0}, {1}...
+@language = es
+@name = Español
+
+app.title = ServiGestWin10 - Gestor masivo de servicios
+app.title.readonly = [SOLO LECTURA - sin privilegios de administrador]
+
+# ---- Menús
+menu.file = &Archivo
+menu.file.save = &Guardar estado de todos los servicios...
+menu.file.restore = &Restaurar estado desde archivo...
+menu.file.elevate = Reiniciar como &administrador
+menu.file.exit = &Salir
+menu.view = &Ver
+menu.view.refresh = &Actualizar
+menu.view.find = &Buscar
+menu.view.clearlog = &Limpiar registro
+menu.sel = &Selección
+menu.sel.checkall = &Marcar todos los mostrados
+menu.sel.uncheckall = &Desmarcar todos los mostrados
+menu.sel.invert = &Invertir marcas de los mostrados
+menu.sel.checksel = Marcar las filas &seleccionadas
+menu.sel.unchecksel = Desmarcar las filas s&eleccionadas
+menu.sel.uncheckcrit = Desmarcar los servicios &críticos
+menu.svc = S&ervicios
+menu.svc.applymode = Aplicar &tipo de inicio a los marcados
+menu.svc.start = &Iniciar los marcados
+menu.svc.stop = &Detener los marcados
+menu.svc.restart = &Reiniciar los marcados
+menu.svc.cancel = &Cancelar la operación en curso
+menu.language = Idi&oma / Language
+menu.language.auto = &Automático (idioma de Windows)
+menu.help = A&yuda
+menu.help.legend = &Leyenda de colores
+menu.help.about = &Acerca de...
+
+# ---- Barra de herramientas
+btn.refresh = Actualizar (F5)
+btn.checkall = Marcar todo
+btn.uncheckall = Desmarcar todo
+btn.invert = Invertir marcas
+btn.applymode = Aplicar a marcados
+btn.start = Iniciar marcados
+btn.stop = Detener marcados
+btn.restart = Reiniciar marcados
+btn.save = Guardar estado...
+btn.restore = Restaurar estado...
+btn.cancel = Cancelar
+lbl.search = Buscar:
+search.cue = nombre, nombre de servicio o descripción
+lbl.mode = Tipo de inicio:
+
+# ---- Columnas
+col.display = Nombre
+col.name = Nombre del servicio
+col.desc = Descripción
+col.state = Estado
+col.start = Tipo de inicio
+col.default = Inicio por defecto (Win10)
+col.logon = Iniciar sesión como
+col.note = Crítico / nota
+
+# ---- Tipos de inicio y estados (como en services.msc)
+mode.auto = Automático
+mode.auto.trigger = Automático (desencadenar inicio)
+mode.delayed = Automático (inicio retrasado)
+mode.delayed.trigger = Automático (inicio retrasado, desencadenar inicio)
+mode.manual = Manual
+mode.manual.trigger = Manual (desencadenar inicio)
+mode.disabled = Deshabilitado
+mode.boot = Arranque (controlador)
+mode.system = Sistema (controlador)
+mode.unknown = Desconocido
+state.stopped = Detenido
+state.startpending = Iniciando
+state.stoppending = Deteniendo
+state.running = En ejecución
+state.continuepending = Reanudando
+state.pausepending = Pausando
+state.paused = En pausa
+state.unknown = Desconocido
+
+# ---- Celdas
+default.unknown = Desconocido
+config.noaccess = (sin acceso)
+logon.localsystem = Sistema local
+logon.localservice = Servicio local
+logon.networkservice = Servicio de red
+note.critical = CRÍTICO: {0}
+note.protected = Protegido por Windows (normalmente no modificable)
+note.userinstance = Instancia de servicio por usuario
+tag.critical = [CRÍTICO]
+crit.errorcontrol = Windows lo marca como crítico para el arranque (ErrorControl = Critical)
+
+# ---- Servicios críticos
+crit.RpcSs = Llamada a procedimiento remoto (RPC): núcleo de COM/RPC, Windows deja de funcionar
+crit.RpcEptMapper = Asignador de extremos RPC: imprescindible para RPC
+crit.DcomLaunch = Iniciador de procesos de servidor DCOM: núcleo de COM
+crit.LSM = Administrador de sesiones locales: sin él no hay sesiones de usuario
+crit.BrokerInfrastructure = Infraestructura de tareas en segundo plano: requerido por el sistema y las apps
+crit.SamSs = Administrador de cuentas de seguridad: necesario para iniciar sesión
+crit.ProfSvc = Servicio de perfil de usuario: sin él no se puede iniciar sesión
+crit.UserManager = Administrador de usuarios: menú Inicio, sesión y apps
+crit.PlugPlay = Plug and Play: detección y configuración del hardware
+crit.Power = Energía: gestión de energía del sistema
+crit.EventLog = Registro de eventos: muchos servicios dependen de él
+crit.Schedule = Programador de tareas: ejecuta tareas de mantenimiento del sistema
+crit.Winmgmt = Instrumental de administración de Windows (WMI)
+crit.gpsvc = Cliente de directiva de grupo: directivas y configuración de seguridad
+crit.CoreMessagingRegistrar = CoreMessaging: comunicación interna de la interfaz de usuario
+crit.SystemEventsBroker = Agente de eventos del sistema: desencadenadores de tareas y apps
+crit.TimeBrokerSvc = Agente de tiempo: desencadenadores de tareas en segundo plano
+crit.StateRepository = Servicio de repositorio de estado: menú Inicio y apps
+crit.CryptSvc = Servicios de cifrado: firmas, certificados y Windows Update
+crit.KeyIso = Aislamiento de claves CNG: credenciales y cifrado
+crit.VaultSvc = Administrador de credenciales: inicio de sesión de apps y servicios
+crit.Appinfo = Información de la aplicación: elevación UAC (Ejecutar como administrador)
+crit.EventSystem = Sistema de eventos COM+: requerido por muchos servicios
+crit.Dhcp = Cliente DHCP: configuración de red (también usado con IP fija)
+crit.Dnscache = Cliente DNS: resolución de nombres
+crit.nsi = Servicio de interfaz de almacenamiento de red: base de la red
+crit.NlaSvc = Reconocimiento de ubicación de red: detección de redes
+crit.netprofm = Servicio de lista de redes: perfiles de red
+crit.Wcmsvc = Administrador de conexiones de Windows: conexiones de red
+crit.BFE = Motor de filtrado base: firewall, IPsec y seguridad de red
+crit.mpssvc = Firewall de Windows Defender: protección y requisito de muchas apps
+crit.msiserver = Windows Installer: instalar, reparar y desinstalar programas
+crit.TrustedInstaller = Instalador de módulos de Windows: actualizaciones y componentes
+crit.sppsvc = Protección de software: licencia y activación de Windows
+
+# ---- Barra de estado
+status.counts = Servicios: {0}   Mostrados: {1}   Marcados: {2}
+status.checkedcrit.one = \s({0} crítico)
+status.checkedcrit.other = \s({0} críticos)
+status.running = \s\s\sEn ejecución: {0}   Críticos: {1}
+status.admin = Administrador
+status.readonly = SOLO LECTURA (sin privilegios)
+status.saved = Estado guardado
+status.progress = Procesando {0}/{1}: {2}
+status.done = Terminado: {0} correctas, {1} con error.
+
+# ---- Registro
+log.startup.admin = ServiGestWin10 {0} - con privilegios de administrador. Idioma: {1}.
+log.startup.readonly = ServiGestWin10 {0} - SIN privilegios de administrador: solo lectura (Archivo > Reiniciar como administrador). Idioma: {1}.
+log.loaded.one = Cargado {0} servicio.
+log.loaded.other = Cargados {0} servicios.
+log.refreshed.one = Lista actualizada: {0} servicio.
+log.refreshed.other = Lista actualizada: {0} servicios.
+log.errenum = ERROR al enumerar los servicios: {0}
+log.elevatefail = No se pudo reiniciar como administrador: {0}
+log.jobheader.one = === {1} ({0} operación) ===
+log.jobheader.other = === {1} ({0} operaciones) ===
+log.cancelled.one = Operación cancelada por el usuario. Queda {0} sin hacer.
+log.cancelled.other = Operación cancelada por el usuario. Quedan {0} sin hacer.
+log.cancelling = Cancelando... (se termina la operación del servicio actual)
+log.result.ok = [OK]    {0} · {1} [{2}]: {3}
+log.result.err = [ERROR] {0} · {1} [{2}]: {3}
+log.plan = \s\splan: {0}
+log.skippedcrit.one = Omitido por ser crítico: {0} servicio.
+log.skippedcrit.other = Omitidos por ser críticos: {0} servicios.
+log.opsomitted.one = {0} operación omitida por afectar a servicios críticos.
+log.opsomitted.other = {0} operaciones omitidas por afectar a servicios críticos.
+log.nothing = No queda nada que hacer.
+log.uncheckedcrit.one = Desmarcado {0} servicio crítico.
+log.uncheckedcrit.other = Desmarcados {0} servicios críticos.
+log.saved.one = Estado de {0} servicio guardado en {1}
+log.saved.other = Estado de {0} servicios guardado en {1}
+log.restoreplan.one = Plan de restauración desde {1}: {0} servicio en el archivo.
+log.restoreplan.other = Plan de restauración desde {1}: {0} servicios en el archivo.
+log.note = \s\sNota: {0}
+log.missing = \s\sNo existe en este equipo: {0}
+log.langchanged = Idioma: {0}
+log.langwarning = Archivos de idioma: {0}
+
+# ---- Líneas de diálogos y registro
+line.mode = {0}{1} ({2}): {3} → {4}
+line.state = {0}{1} ({2}) - {3}
+line.restore = {0}{1}: {2} ({3}) {4}
+
+# ---- Operaciones
+op.name.setmode = Tipo de inicio
+op.name.start = Iniciar
+op.name.stop = Detener
+op.modeset = tipo de inicio → {0}
+op.started = iniciado
+op.stopped = detenido
+op.stopped.withdeps.one = {1} (junto con {0} servicio dependiente)
+op.stopped.withdeps.other = {1} (junto con {0} servicios dependientes)
+op.already.running = ya estaba en ejecución
+op.already.stopped = ya estaba detenido
+op.already.state = ya estaba {0}
+op.stopping.dependent = \s\s\s\s· deteniendo el servicio dependiente {0}...
+op.err.open = No se pudo abrir: {0}
+op.err.badmode = tipo de inicio no válido
+op.err.delayed = se puso en Automático, pero no se pudo activar el inicio retrasado: {0}
+op.err.disabled = está Deshabilitado; cambie antes su tipo de inicio ({0})
+op.err.exited.code = se inició pero se detuvo enseguida: {0}
+op.err.exited.specific = se inició pero se detuvo enseguida (código específico {0})
+op.err.exited.trigger = se inició pero se detuvo enseguida (normal en servicios de "desencadenar inicio" que no tienen trabajo)
+op.err.starttimeout = no arrancó a tiempo (estado: {0})
+op.err.stoptimeout = no se detuvo a tiempo (estado: {0})
+op.err.notstoppable = el servicio no acepta la orden de detención en su estado actual
+op.err.dependents = tiene servicios dependientes en ejecución: {0}
+op.err.critdependent = depende de él el servicio crítico {0}, que se ha omitido; no se detiene
+op.err.dependentfail = no se pudo detener el servicio dependiente {0}: {1}
+op.err.unknownop = operación desconocida
+err.unknown = Error desconocido
+err.withcode = {0} (código {1})
+err.filetoobig = archivo demasiado grande
+
+# ---- Plan de restauración
+plan.note.instance = {0} → {1} (instancia por usuario)
+plan.note.disabledrunning = {0}: estaba en ejecución pero su modo guardado es Deshabilitado; no se inicia.
+
+# ---- Diálogos
+dlg.continue = Continuar
+dlg.critical.skip = Omitir los servicios críticos y continuar\nRecomendado. Los servicios críticos (en rojo) no se tocarán.
+dlg.critical.include = Incluir también los servicios críticos\nPeligroso: Windows puede quedar inestable, sin red o no arrancar.
+dlg.expand.hide = Ocultar la lista
+dlg.expand.show = Ver la lista de servicios afectados
+dlg.confirmcrit.title = ServiGestWin10 - Confirmación
+dlg.confirmcrit = Ha elegido modificar también servicios CRÍTICOS.\n\nEsto puede dejar Windows inestable, sin red, sin poder iniciar sesión o sin arrancar.\n\n¿Está completamente seguro?
+dlg.fallback.skipcrit = \n\nSe omitirán los servicios críticos. ¿Continuar?
+dlg.needadmin = Esta operación requiere privilegios de administrador.\n\n¿Reiniciar ServiGestWin10 como administrador?
+dlg.list.more.one = ... y {0} más (la lista completa está en el registro).
+dlg.list.more.other = ... y {0} más (la lista completa está en el registro).
+dlg.hidden.one = Atención: {0} de los marcados no está visible por el filtro.
+dlg.hidden.other = Atención: {0} de los marcados no están visibles por el filtro.
+dlg.mode.title = ¿Cambiar el tipo de inicio a "{0}"?
+dlg.mode.count.one = Servicios a modificar: {0}
+dlg.mode.count.other = Servicios a modificar: {0}
+dlg.mode.same.one = {0} ya tenía ese tipo de inicio (se omite).
+dlg.mode.same.other = {0} ya tenían ese tipo de inicio (se omiten).
+dlg.mode.critical.one = {0} es un servicio CRÍTICO y este cambio puede impedir que Windows funcione correctamente.
+dlg.mode.critical.other = {0} son servicios CRÍTICOS y este cambio puede impedir que Windows funcione correctamente.
+dlg.ss.title.start = ¿Iniciar los servicios seleccionados?
+dlg.ss.title.stop = ¿Detener los servicios seleccionados?
+dlg.ss.title.restart = ¿Reiniciar los servicios seleccionados?
+dlg.ss.count.start.one = Servicios a iniciar: {0}
+dlg.ss.count.start.other = Servicios a iniciar: {0}
+dlg.ss.count.stop.one = Servicios a detener: {0}
+dlg.ss.count.stop.other = Servicios a detener: {0}
+dlg.ss.count.restart.one = Servicios a reiniciar: {0}
+dlg.ss.count.restart.other = Servicios a reiniciar: {0}
+dlg.ss.skip.start.one = Se omite {0} que ya está en ejecución.
+dlg.ss.skip.start.other = Se omiten {0} que ya están en ejecución.
+dlg.ss.skip.stop.one = Se omite {0} que ya está detenido.
+dlg.ss.skip.stop.other = Se omiten {0} que ya están detenidos.
+dlg.ss.disabled.one = {0} está Deshabilitado y no podrá iniciarse hasta cambiar su tipo de inicio.
+dlg.ss.disabled.other = {0} están Deshabilitados y no podrán iniciarse hasta cambiar su tipo de inicio.
+dlg.ss.critical.one = {0} es un servicio CRÍTICO; detenerlo puede bloquear o desestabilizar Windows.
+dlg.ss.critical.other = {0} son servicios CRÍTICOS; detenerlos puede bloquear o desestabilizar Windows.
+dlg.ss.deps = Detener también los servicios que dependen de ellos
+dlg.restore.title = ¿Restaurar el estado guardado de los servicios?
+dlg.restore.summary = Cambios de tipo de inicio: {0}\nServicios a detener: {1}\nServicios a iniciar: {2}\nSin cambios: {3}\nNo existen en este equipo: {4}
+dlg.restore.critical.one = {0} operación afecta negativamente a servicios CRÍTICOS.
+dlg.restore.critical.other = {0} operaciones afectan negativamente a servicios CRÍTICOS.
+dlg.restore.deps = Al detener, detener también los servicios dependientes
+
+# ---- Trabajos
+job.mode = Cambiar tipo de inicio a {0}
+job.start = Iniciar servicios
+job.stop = Detener servicios
+job.restart = Reiniciar servicios
+job.restore = Restaurar estado desde archivo
+
+# ---- Mensajes
+msg.nochecked = No hay servicios marcados.
+msg.allsame = Todos los servicios marcados ya tienen ese tipo de inicio.
+msg.allrunning = Todos los servicios marcados ya están en ejecución.
+msg.allstopped = Todos los servicios marcados ya están detenidos.
+msg.savefail = No se pudo guardar el archivo:\n{0}
+msg.readfail = No se pudo leer el archivo:\n{0}
+msg.restore.nochange = El estado actual ya coincide con el archivo.\n\nSin cambios: {0}\nNo encontrados en este equipo: {1}
+msg.closebusy = Hay una operación en curso. ¿Cancelarla y salir?\n(Se espera a que termine el servicio actual.)
+
+# ---- Archivos
+save.title = Guardar el estado actual de todos los servicios
+restore.title = Restaurar el estado de los servicios desde un archivo
+file.filter.savecsv = CSV separado por punto y coma (*.csv)
+file.filter.csvopen = CSV (*.csv)
+file.filter.all = Todos los archivos (*.*)
+csv.fileprefix = Servicios
+csv.err.empty = El archivo está vacío.
+csv.err.header = Cabecera no reconocida. Se esperan las columnas ServiceName, StartType y State.
+csv.err.noservices = El archivo no contiene servicios.
+
+# ---- Menú contextual
+ctx.checksel = Marcar seleccionados
+ctx.unchecksel = Desmarcar seleccionados
+ctx.start = Iniciar seleccionados
+ctx.stop = Detener seleccionados
+ctx.restart = Reiniciar seleccionados
+ctx.mode = Aplicar el tipo de inicio elegido a los seleccionados
+ctx.copyname = Copiar nombre del servicio
+
+# ---- Ayuda
+legend.title = ServiGestWin10 - Leyenda
+legend.text = Filas en ROJO (con marca roja a la izquierda):\nServicios que NO deben detenerse ni deshabilitarse bajo ningún concepto. El motivo aparece en la columna "Crítico / nota". Al intentar modificarlos, la aplicación pide confirmación y propone omitirlos.\n\nTexto NARANJA en "Inicio por defecto (Win10)":\nEl tipo de inicio actual es distinto del que trae Windows 10 por defecto.\n\n"Inicio por defecto (Win10)":\nValor de una instalación limpia de Windows 10 Pro 22H2 (fuente: winhelponline.com). Puede variar según la edición, la versión, el hardware y el software instalado. "Desconocido" = servicio de terceros o no incluido en la tabla.\n\nCasilla de la cabecera: marca o desmarca todos los servicios mostrados.
+about.title = Acerca de ServiGestWin10
+about.text = ServiGestWin10 {0}\nGestor masivo de servicios de Windows\n\nC++17 / API Win32 nativa, sin dependencias externas.\n\nTabla de inicio por defecto: {1} servicios (Windows 10 Pro 22H2).\nServicios críticos conocidos: {2}.\nIdioma de la interfaz: {3}.\n\nLínea de comandos (consola de administrador):\n  ServiGestWin10.exe /export archivo.csv\n  ServiGestWin10.exe /import archivo.csv            (simulación)\n  ServiGestWin10.exe /import archivo.csv /apply\n  ... /apply /includecritical   (también críticos)\n  ... /lang:en|es|fr|zh-CN       (idioma de la interfaz)
+
+# ---- Línea de comandos
+cli.usage = ServiGestWin10 {0} - uso en línea de comandos:\n  /export archivo.csv                   guarda el estado de todos los servicios\n  /import archivo.csv                   muestra lo que cambiaría (simulación)\n  /import archivo.csv /apply            aplica el estado (requiere administrador)\n  /import archivo.csv /apply /includecritical   incluye cambios peligrosos en servicios críticos\n  /lang:en|es|fr|zh-CN                  idioma de la interfaz
+cli.exported.one = Exportado {0} servicio a {1}
+cli.exported.other = Exportados {0} servicios a {1}
+cli.errwrite = ERROR al escribir {0}: {1}
+cli.errread = ERROR al leer {0}: {1}
+cli.summary = Servicios en el archivo: {0}; sin cambios: {1}; no encontrados: {2}; operaciones: {3}
+cli.simulation = (Simulación. Añada /apply para aplicar los cambios.)
+cli.needadmin = ERROR: se requieren privilegios de administrador (consola elevada).
+cli.skipped = [OMITIDO] {0}: {1} (crítico)
