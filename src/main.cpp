@@ -1,5 +1,8 @@
-// ServiGestWin10 - Gestor masivo de servicios de Windows 10
+// ServiGestWin10 - Gestor masivo de servicios de Windows
 // main.cpp: interfaz gráfica Win32 y modo línea de comandos.
+//
+// Todos los textos visibles se obtienen con T()/F()/P() de los archivos lang/*.lang
+// (ver i18n.hpp). No escribir textos de interfaz directamente en este archivo.
 //
 // Compilación: ver build.sh (MinGW-w64) o CMakeLists.txt (Visual Studio / MinGW).
 
@@ -19,7 +22,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cwctype>
 #include <map>
 #include <memory>
 #include <set>
@@ -28,19 +30,24 @@
 #include <vector>
 
 #include "core.hpp"
+#include "i18n.hpp"
+#include "lang_win.hpp"
 #include "scm.hpp"
 #include "version.h"
 
+using sg::F;
+using sg::N;
 using sg::OpKind;
+using sg::P;
 using sg::RunState;
 using sg::StartMode;
+using sg::T;
 
 namespace {
 
 // ------------------------------------------------------------ constantes
 
 constexpr wchar_t kClassName[] = L"ServiGestWin10MainWindow";
-constexpr wchar_t kAppTitle[] = L"ServiGestWin10 - Gestor masivo de servicios";
 constexpr DWORD kOpTimeoutMs = 30000;
 
 enum : int {
@@ -49,6 +56,7 @@ enum : int {
     IDB_RESTART, IDB_SAVE, IDB_RESTORE, IDB_CANCEL,
     IDM_EXIT = 300, IDM_ABOUT, IDM_LEGEND, IDM_ELEVATE, IDM_CHECKSEL, IDM_UNCHECKSEL, IDM_COPYNAME,
     IDM_CLEARLOG, IDM_FIND, IDM_UNCHECKCRIT, IDM_CTX_START, IDM_CTX_STOP, IDM_CTX_RESTART, IDM_CTX_MODE,
+    IDM_LANG_AUTO = 400, IDM_LANG_FIRST = 401,  // 401.. = SupportedLanguages()[i]
 };
 
 enum Column : int { COL_DISPLAY = 0, COL_NAME, COL_DESC, COL_STATE, COL_START, COL_DEFAULT, COL_LOGON, COL_NOTE, COL_COUNT };
@@ -65,14 +73,30 @@ const COLORREF kCriticalText = RGB(150, 0, 0);
 const COLORREF kCriticalBar = RGB(220, 0, 0);
 const COLORREF kDiffersText = RGB(190, 90, 0);
 
+// Botones y etiquetas con su clave de texto (para crear y para cambiar de idioma).
+struct TextControl {
+    int id;
+    const char* key;
+};
+const TextControl kButtons[] = {
+    {IDB_REFRESH, "btn.refresh"}, {IDB_CHECKALL, "btn.checkall"}, {IDB_UNCHECKALL, "btn.uncheckall"},
+    {IDB_INVERT, "btn.invert"},   {IDB_APPLYMODE, "btn.applymode"}, {IDB_START, "btn.start"},
+    {IDB_STOP, "btn.stop"},       {IDB_RESTART, "btn.restart"},   {IDB_SAVE, "btn.save"},
+    {IDB_RESTORE, "btn.restore"}, {IDB_CANCEL, "btn.cancel"},
+};
+const char* const kColumnKeys[COL_COUNT] = {"col.display", "col.name",    "col.desc",  "col.state",
+                                            "col.start",   "col.default", "col.logon", "col.note"};
+const int kColumnWidths[COL_COUNT] = {260, 170, 320, 95, 200, 220, 125, 380};
+const StartMode kModes[] = {StartMode::Automatic, StartMode::AutomaticDelayed, StartMode::Manual, StartMode::Disabled};
+
 // ------------------------------------------------------------ modelo
 
 struct Row {
     sg::ServiceInfo info;
     bool checked = false;
-    const wchar_t* critical = nullptr;  // motivo (fila roja)
+    bool critical = false;  // fila roja
     const sg::DefaultInfo* def = nullptr;
-    bool differs = false;               // modo actual distinto del de por defecto
+    bool differs = false;   // modo actual distinto del de por defecto
     std::wstring col[COL_COUNT];
     std::wstring searchKey;
 };
@@ -106,6 +130,7 @@ struct App {
     bool sortAsc = true;
     bool populating = false;
     bool elevated = false;
+    std::wstring langPref;  // "" = automático (idioma de Windows)
     std::atomic<bool> busy{false};
     std::atomic<bool> cancel{false};
     std::thread worker;
@@ -131,23 +156,15 @@ std::wstring OneLine(std::wstring s) {
 
 std::wstring AccountLabel(const std::wstring& a) {
     const std::wstring l = sg::ToLower(a);
-    if (l == L"localsystem" || l == L".\\localsystem") return L"Sistema local";
-    if (l == L"nt authority\\localservice") return L"Servicio local";
-    if (l == L"nt authority\\networkservice") return L"Servicio de red";
+    if (l == L"localsystem" || l == L".\\localsystem") return T("logon.localsystem");
+    if (l == L"nt authority\\localservice") return T("logon.localservice");
+    if (l == L"nt authority\\networkservice") return T("logon.networkservice");
     return a;
-}
-
-std::wstring Timestamp() {
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    wchar_t b[32];
-    wsprintfW(b, L"[%02d:%02d:%02d] ", st.wHour, st.wMinute, st.wSecond);
-    return b;
 }
 
 void Log(const std::wstring& text) {
     if (!g.log) return;
-    std::wstring line = Timestamp() + text + L"\r\n";
+    std::wstring line = L"[" + sg::langwin::FormatTimeNow() + L"] " + text + L"\r\n";
     const int len = GetWindowTextLengthW(g.log);
     if (len > 3000000) SetWindowTextW(g.log, L"");
     SendMessageW(g.log, EM_SETSEL, static_cast<WPARAM>(len), static_cast<LPARAM>(len));
@@ -159,13 +176,17 @@ void SetStatusPart(int part, const std::wstring& text) {
     SendMessageW(g.status, SB_SETTEXTW, static_cast<WPARAM>(part), reinterpret_cast<LPARAM>(text.c_str()));
 }
 
+int Message(const std::wstring& text, UINT flags, const std::wstring& title = L"ServiGestWin10") {
+    return MessageBoxW(g.wnd, text.c_str(), title.c_str(), flags);
+}
+
 bool ReadAll(const std::wstring& path, std::string& out, std::wstring& err) {
     HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL, nullptr);
     if (f == INVALID_HANDLE_VALUE) { err = sg::ErrorText(GetLastError()); return false; }
     LARGE_INTEGER sz{};
     GetFileSizeEx(f, &sz);
-    if (sz.QuadPart > 64 * 1024 * 1024) { CloseHandle(f); err = L"archivo demasiado grande"; return false; }
+    if (sz.QuadPart > 64 * 1024 * 1024) { CloseHandle(f); err = T("err.filetoobig"); return false; }
     out.resize(static_cast<size_t>(sz.QuadPart));
     DWORD rd = 0;
     const BOOL ok = out.empty() || ReadFile(f, &out[0], static_cast<DWORD>(out.size()), &rd, nullptr);
@@ -193,28 +214,43 @@ std::wstring ModulePath() {
 }
 
 std::wstring DefaultCsvName() {
+    // Fecha ISO en el nombre del archivo: ordenable y válida en cualquier idioma.
     wchar_t comp[MAX_COMPUTERNAME_LENGTH + 1] = L"PC";
     DWORD n = ARRAYSIZE(comp);
     GetComputerNameW(comp, &n);
     SYSTEMTIME st;
     GetLocalTime(&st);
-    wchar_t b[128];
-    wsprintfW(b, L"Servicios_%s_%04d%02d%02d_%02d%02d%02d.csv", comp, st.wYear, st.wMonth, st.wDay, st.wHour,
-              st.wMinute, st.wSecond);
-    return b;
+    wchar_t b[96];
+    wsprintfW(b, L"_%s_%04d%02d%02d_%02d%02d%02d.csv", comp, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute,
+              st.wSecond);
+    std::wstring prefix = T("csv.fileprefix");
+    for (auto& c : prefix)  // por si una traducción incluye caracteres no válidos en nombres de archivo
+        if (wcschr(L"\\/:*?\"<>|", c)) c = L'_';
+    return prefix + b;
 }
 
-std::wstring Plural(size_t n, const wchar_t* one, const wchar_t* many) {
-    return std::to_wstring(n) + L" " + (n == 1 ? one : many);
+std::wstring FileFilter(const char* firstKey, const wchar_t* pattern) {
+    std::wstring f = T(firstKey);
+    f += L'\0';
+    f += pattern;
+    f += L'\0';
+    f += T("file.filter.all");
+    f += L'\0';
+    f += L"*.*";
+    f += L'\0';
+    f += L'\0';
+    return f;
 }
 
-const wchar_t* OpName(OpKind k) {
+std::wstring OpName(OpKind k) {
     switch (k) {
-        case OpKind::SetMode: return L"Tipo de inicio";
-        case OpKind::Stop: return L"Detener";
-        default: return L"Iniciar";
+        case OpKind::SetMode: return T("op.name.setmode");
+        case OpKind::Stop: return T("op.name.stop");
+        default: return T("op.name.start");
     }
 }
+
+std::wstring CritTag(bool risky) { return risky ? T("tag.critical") + L" " : L""; }
 
 sg::OpResult ExecuteItem(const JobItem& it, const Job& job, const sg::LogFn& log, const std::atomic<bool>* cancel) {
     switch (it.kind) {
@@ -226,7 +262,7 @@ sg::OpResult ExecuteItem(const JobItem& it, const Job& job, const sg::LogFn& log
             return sg::StopSvc(it.name, job.stopDependents, skip, kOpTimeoutMs, log, cancel);
         }
     }
-    return {false, L"operación desconocida"};
+    return {false, T("op.err.unknownop")};
 }
 
 bool RelaunchElevated(const std::wstring& params) {
@@ -242,13 +278,20 @@ bool RelaunchElevated(const std::wstring& params) {
     return ShellExecuteExW(&sei) != FALSE;
 }
 
+std::wstring ActiveLanguageName() {
+    for (const auto& l : sg::i18n::SupportedLanguages())
+        if (sg::i18n::ActiveLanguage() == l.code) return l.nativeName;
+    return sg::i18n::ActiveLanguage();
+}
+
 // ------------------------------------------------------------ lista
 
 void DeriveRow(Row& r) {
     const auto& s = r.info;
-    r.critical = sg::LookupCritical(s.name);
-    if (!r.critical && s.errorControl == SERVICE_ERROR_CRITICAL)
-        r.critical = L"Windows lo marca como crítico para el arranque (ErrorControl = Critical)";
+    std::wstring reason;
+    r.critical = sg::IsCritical(s.name);
+    if (r.critical) reason = sg::CriticalReason(s.name);
+    else if (s.errorControl == SERVICE_ERROR_CRITICAL) { r.critical = true; reason = T("crit.errorcontrol"); }
     r.def = sg::LookupDefault(s.name);
     r.differs = r.def && s.configOk && r.def->mode != s.mode;
 
@@ -256,12 +299,12 @@ void DeriveRow(Row& r) {
     r.col[COL_NAME] = s.name;
     r.col[COL_DESC] = OneLine(s.description);
     r.col[COL_STATE] = sg::RunStateLabel(s.state);
-    r.col[COL_START] = s.configOk ? sg::StartModeLabel(s.mode, s.trigger) : L"(sin acceso)";
-    r.col[COL_DEFAULT] = r.def ? sg::StartModeLabel(r.def->mode, r.def->trigger) : L"Desconocido";
+    r.col[COL_START] = s.configOk ? sg::StartModeLabel(s.mode, s.trigger) : T("config.noaccess");
+    r.col[COL_DEFAULT] = r.def ? sg::StartModeLabel(r.def->mode, r.def->trigger) : T("default.unknown");
     r.col[COL_LOGON] = AccountLabel(s.account);
-    if (r.critical) r.col[COL_NOTE] = std::wstring(L"CRÍTICO: ") + r.critical;
-    else if (s.protectedSvc) r.col[COL_NOTE] = L"Protegido por Windows (normalmente no modificable)";
-    else if (s.userInstance) r.col[COL_NOTE] = L"Instancia de servicio por usuario";
+    if (r.critical) r.col[COL_NOTE] = F("note.critical", {reason});
+    else if (s.protectedSvc) r.col[COL_NOTE] = T("note.protected");
+    else if (s.userInstance) r.col[COL_NOTE] = T("note.userinstance");
     else r.col[COL_NOTE].clear();
     r.searchKey = sg::ToLower(s.displayName + L"\n" + s.name + L"\n" + s.description);
 }
@@ -288,7 +331,10 @@ int CALLBACK CompareRows(LPARAM a, LPARAM b, LPARAM) {
     const Row& y = g.rows[static_cast<size_t>(b)];
     int c = 0;
     if (g.sortCol == COL_NOTE) c = SortKeyNote(x) - SortKeyNote(y);
-    if (c == 0) c = lstrcmpiW(x.col[g.sortCol].c_str(), y.col[g.sortCol].c_str());
+    // CompareStringEx con el idioma de la interfaz: orden alfabético correcto en cada idioma
+    if (c == 0)
+        c = CompareStringEx(LOCALE_NAME_USER_DEFAULT, NORM_IGNORECASE | SORT_DIGITSASNUMBERS,
+                            x.col[g.sortCol].c_str(), -1, y.col[g.sortCol].c_str(), -1, nullptr, nullptr, 0) - 2;
     if (c == 0) c = lstrcmpiW(x.col[COL_DISPLAY].c_str(), y.col[COL_DISPLAY].c_str());
     return g.sortAsc ? c : -c;
 }
@@ -319,12 +365,11 @@ void UpdateStatusBar() {
         if (sg::IsRunningLike(r.info.state)) ++running;
         if (r.critical) ++crit;
     }
-    std::wstring s = L"Servicios: " + std::to_wstring(g.rows.size()) + L"   Mostrados: " +
-                     std::to_wstring(ListView_GetItemCount(g.list)) + L"   Marcados: " + std::to_wstring(checked);
-    if (checkedCrit) s += L" (" + std::to_wstring(checkedCrit) + L" críticos)";
-    s += L"   En ejecución: " + std::to_wstring(running) + L"   Críticos: " + std::to_wstring(crit);
+    std::wstring s = F("status.counts", {N(static_cast<long long>(g.rows.size())), N(ListView_GetItemCount(g.list)), N(checked)});
+    if (checkedCrit) s += P("status.checkedcrit", checkedCrit);
+    s += F("status.running", {N(running), N(crit)});
     SetStatusPart(0, s);
-    SetStatusPart(1, g.elevated ? L"Administrador" : L"SOLO LECTURA (sin privilegios)");
+    SetStatusPart(1, g.elevated ? T("status.admin") : T("status.readonly"));
 }
 
 void RebuildList() {
@@ -379,7 +424,7 @@ bool FullRefresh() {
     const bool ok = sg::EnumerateServices(v, err);
     if (!ok) {
         SetCursor(old);
-        Log(L"ERROR al enumerar los servicios: " + err);
+        Log(F("log.errenum", {err}));
         return false;
     }
     std::set<std::wstring> checked;
@@ -450,7 +495,7 @@ void UncheckCritical() {
     g.populating = false;
     UpdateHeader();
     UpdateStatusBar();
-    Log(L"Desmarcados " + std::to_wstring(count) + L" servicios críticos.");
+    Log(P("log.uncheckedcrit", count));
 }
 
 std::vector<int> CheckedRows() {
@@ -478,6 +523,8 @@ int HiddenCount(const std::vector<int>& rows) {
 
 // ------------------------------------------------------------ UI general
 
+void UpdateLanguageMenuChecks();
+
 void EnableActions(bool enable) {
     const int ids[] = {IDB_REFRESH, IDB_APPLYMODE, IDB_START, IDB_STOP, IDB_RESTART, IDB_SAVE, IDB_RESTORE};
     for (int id : ids) {
@@ -486,6 +533,7 @@ void EnableActions(bool enable) {
     }
     EnableWindow(g.buttons[IDB_CANCEL], !enable);
     EnableMenuItem(g.menu, IDB_CANCEL, MF_BYCOMMAND | (!enable ? MF_ENABLED : MF_GRAYED));
+    UpdateLanguageMenuChecks();  // el idioma no se puede cambiar durante una operación
     DrawMenuBar(g.wnd);
 }
 
@@ -494,13 +542,15 @@ enum class Choice { Cancel, All, SkipRisky };
 std::wstring LimitedList(const std::vector<std::wstring>& lines, size_t maxLines) {
     std::wstring s;
     for (size_t i = 0; i < lines.size() && i < maxLines; ++i) s += lines[i] + L"\n";
-    if (lines.size() > maxLines)
-        s += L"... y " + std::to_wstring(lines.size() - maxLines) + L" más (la lista completa está en el registro).\n";
+    if (lines.size() > maxLines) s += P("dlg.list.more", static_cast<long long>(lines.size() - maxLines)) + L"\n";
     return s;
 }
 
 Choice Confirm(const std::wstring& instruction, const std::wstring& content, int riskyCount,
-               const std::wstring& expanded, const wchar_t* verifyText, bool* verify) {
+               const std::wstring& expanded, const std::wstring& verifyText, bool* verify) {
+    const std::wstring skipText = T("dlg.critical.skip"), includeText = T("dlg.critical.include"),
+                       continueText = T("dlg.continue"), hideText = T("dlg.expand.hide"),
+                       showText = T("dlg.expand.show");
     TASKDIALOGCONFIG tc{};
     tc.cbSize = sizeof(tc);
     tc.hwndParent = g.wnd;
@@ -511,28 +561,26 @@ Choice Confirm(const std::wstring& instruction, const std::wstring& content, int
     tc.pszContent = content.c_str();
     if (!expanded.empty()) {
         tc.pszExpandedInformation = expanded.c_str();
-        tc.pszExpandedControlText = L"Ocultar la lista";
-        tc.pszCollapsedControlText = L"Ver la lista de servicios afectados";
+        tc.pszExpandedControlText = hideText.c_str();
+        tc.pszCollapsedControlText = showText.c_str();
     }
     TASKDIALOG_BUTTON btns[2];
     UINT nb = 0;
     if (riskyCount > 0) {
-        btns[nb++] = {101, L"Omitir los servicios críticos y continuar\n"
-                           L"Recomendado. Los servicios críticos (en rojo) no se tocarán."};
-        btns[nb++] = {102, L"Incluir también los servicios críticos\n"
-                           L"Peligroso: Windows puede quedar inestable, sin red o no arrancar."};
+        btns[nb++] = {101, skipText.c_str()};
+        btns[nb++] = {102, includeText.c_str()};
         tc.pszMainIcon = TD_WARNING_ICON;
         tc.nDefaultButton = 101;
     } else {
-        btns[nb++] = {102, L"Continuar"};
+        btns[nb++] = {102, continueText.c_str()};
         tc.pszMainIcon = TD_INFORMATION_ICON;
         tc.nDefaultButton = 102;
     }
     tc.pButtons = btns;
     tc.cButtons = nb;
     tc.dwCommonButtons = TDCBF_CANCEL_BUTTON;
-    if (verifyText && verify) {
-        tc.pszVerificationText = verifyText;
+    if (!verifyText.empty() && verify) {
+        tc.pszVerificationText = verifyText.c_str();
         if (*verify) tc.dwFlags |= TDF_VERIFICATION_FLAG_CHECKED;
     }
     int btn = 0;
@@ -540,19 +588,14 @@ Choice Confirm(const std::wstring& instruction, const std::wstring& content, int
     if (FAILED(TaskDialogIndirect(&tc, &btn, nullptr, &ver))) {
         // Respaldo si TaskDialog no está disponible
         std::wstring txt = instruction + L"\n\n" + content;
-        if (riskyCount > 0) txt += L"\n\nSe omitirán los servicios críticos. ¿Continuar?";
-        btn = MessageBoxW(g.wnd, txt.c_str(), L"ServiGestWin10", MB_OKCANCEL | MB_ICONWARNING) == IDOK
-                  ? (riskyCount > 0 ? 101 : 102) : IDCANCEL;
+        if (riskyCount > 0) txt += T("dlg.fallback.skipcrit");
+        btn = Message(txt, MB_OKCANCEL | MB_ICONWARNING) == IDOK ? (riskyCount > 0 ? 101 : 102) : IDCANCEL;
     }
     if (verify) *verify = ver != FALSE;
     if (btn == 101) return Choice::SkipRisky;
     if (btn == 102) {
         if (riskyCount > 0 &&
-            MessageBoxW(g.wnd,
-                        L"Ha elegido modificar también servicios CRÍTICOS.\n\n"
-                        L"Esto puede dejar Windows inestable, sin red, sin poder iniciar sesión o sin arrancar.\n\n"
-                        L"¿Está completamente seguro?",
-                        L"ServiGestWin10 - Confirmación", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES)
+            Message(T("dlg.confirmcrit"), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2, T("dlg.confirmcrit.title")) != IDYES)
             return Choice::Cancel;
         return Choice::All;
     }
@@ -561,12 +604,9 @@ Choice Confirm(const std::wstring& instruction, const std::wstring& content, int
 
 bool RequireAdmin() {
     if (g.elevated) return true;
-    if (MessageBoxW(g.wnd,
-                    L"Esta operación requiere privilegios de administrador.\n\n"
-                    L"¿Reiniciar ServiGestWin10 como administrador?",
-                    L"ServiGestWin10", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+    if (Message(T("dlg.needadmin"), MB_YESNO | MB_ICONQUESTION) == IDYES) {
         if (RelaunchElevated(L"/elevated")) DestroyWindow(g.wnd);
-        else Log(L"No se pudo reiniciar como administrador: " + sg::ErrorText(GetLastError()));
+        else Log(F("log.elevatefail", {sg::ErrorText(GetLastError())}));
     }
     return false;
 }
@@ -583,7 +623,7 @@ void RunJob(Job job) {
     g.busy = true;
     g.cancel = false;
     EnableActions(false);
-    Log(L"=== " + job.title + L" (" + std::to_wstring(job.items.size()) + L" operaciones) ===");
+    Log(P("log.jobheader", static_cast<long long>(job.items.size()), {job.title}));
     HWND wnd = g.wnd;
     if (g.worker.joinable()) g.worker.join();
     g.worker = std::thread([job = std::move(job), wnd]() {
@@ -592,120 +632,98 @@ void RunJob(Job job) {
         auto log = [wnd](const std::wstring& s) { PostText(wnd, WM_APP_LOG, s); };
         for (size_t i = 0; i < n; ++i) {
             if (g.cancel) {
-                log(L"Operación cancelada por el usuario. Quedan " + std::to_wstring(n - i) + L" sin hacer.");
+                log(P("log.cancelled", static_cast<long long>(n - i)));
                 break;
             }
             const JobItem& it = job.items[i];
             PostText(wnd, WM_APP_PROGRESS,
-                     L"Procesando " + std::to_wstring(i + 1) + L"/" + std::to_wstring(n) + L": " + it.display);
+                     F("status.progress", {N(static_cast<long long>(i + 1)), N(static_cast<long long>(n)), it.display}));
             const sg::OpResult r = ExecuteItem(it, job, log, &g.cancel);
-            log(std::wstring(r.ok ? L"[OK]    " : L"[ERROR] ") + OpName(it.kind) + L" · " + it.display + L" [" +
-                it.name + L"]: " + r.message);
+            log(F(r.ok ? "log.result.ok" : "log.result.err", {OpName(it.kind), it.display, it.name, r.message}));
             (r.ok ? ok : fail)++;
         }
         PostMessageW(wnd, WM_APP_DONE, static_cast<WPARAM>(ok), static_cast<LPARAM>(fail));
     });
 }
 
-// Construye los elementos de trabajo filtrando los críticos si procede.
-struct Prepared {
-    std::vector<JobItem> items;
-    std::vector<std::wstring> lines;   // para el diálogo
-    std::vector<std::wstring> risky;   // nombres afectados peligrosamente
-};
-
 void DoApplyMode(const std::vector<int>& targets) {
-    if (targets.empty()) { MessageBoxW(g.wnd, L"No hay servicios marcados.", L"ServiGestWin10", MB_ICONINFORMATION); return; }
+    if (targets.empty()) { Message(T("msg.nochecked"), MB_ICONINFORMATION); return; }
     const int sel = static_cast<int>(SendMessageW(g.mode, CB_GETCURSEL, 0, 0));
     if (sel < 0) return;
     const StartMode mode = static_cast<StartMode>(SendMessageW(g.mode, CB_GETITEMDATA, static_cast<WPARAM>(sel), 0));
     if (!RequireAdmin()) return;
 
-    Prepared p;
-    std::vector<JobItem> riskyItems;
+    std::vector<JobItem> items, riskyItems;
+    std::vector<std::wstring> lines;
     int same = 0;
     for (int ri : targets) {
         const Row& r = g.rows[static_cast<size_t>(ri)];
         if (r.info.configOk && r.info.mode == mode) { ++same; continue; }
         JobItem it{OpKind::SetMode, r.info.name, r.info.displayName, mode};
         const bool risky = sg::IsRiskyModeChange(r.info.name, mode);
-        std::wstring line = (risky ? L"[CRÍTICO] " : L"") + r.info.displayName + L" (" + r.info.name + L"): " +
-                            r.col[COL_START] + L" -> " + sg::StartModeLabel(mode, false);
-        p.lines.push_back(line);
-        if (risky) { p.risky.push_back(r.info.name); riskyItems.push_back(it); }
-        else p.items.push_back(it);
+        lines.push_back(F("line.mode", {CritTag(risky), r.info.displayName, r.info.name, r.col[COL_START],
+                                         sg::StartModeLabel(mode, false)}));
+        (risky ? riskyItems : items).push_back(it);
     }
-    if (p.items.empty() && riskyItems.empty()) {
-        MessageBoxW(g.wnd, L"Todos los servicios marcados ya tienen ese tipo de inicio.", L"ServiGestWin10", MB_ICONINFORMATION);
-        return;
-    }
+    if (items.empty() && riskyItems.empty()) { Message(T("msg.allsame"), MB_ICONINFORMATION); return; }
     const int hidden = HiddenCount(targets);
-    std::wstring content = L"Servicios a modificar: " + std::to_wstring(p.items.size() + riskyItems.size());
-    if (same) content += L"\nYa tenían ese tipo de inicio (se omiten): " + std::to_wstring(same);
-    if (hidden) content += L"\nAtención: " + std::to_wstring(hidden) + L" de los marcados no están visibles por el filtro.";
-    if (!p.risky.empty())
-        content += L"\n\n" + Plural(p.risky.size(), L"es un servicio CRÍTICO", L"son servicios CRÍTICOS") +
-                   L" y este cambio puede impedir que Windows funcione correctamente.";
-    const Choice c = Confirm(L"¿Cambiar el tipo de inicio a \"" + sg::StartModeLabel(mode, false) + L"\"?", content,
-                             static_cast<int>(p.risky.size()), LimitedList(p.lines, 40), nullptr, nullptr);
+    std::wstring content = P("dlg.mode.count", static_cast<long long>(items.size() + riskyItems.size()));
+    if (same) content += L"\n" + P("dlg.mode.same", same);
+    if (hidden) content += L"\n" + P("dlg.hidden", hidden);
+    if (!riskyItems.empty()) content += L"\n\n" + P("dlg.mode.critical", static_cast<long long>(riskyItems.size()));
+    const Choice c = Confirm(F("dlg.mode.title", {sg::StartModeLabel(mode, false)}), content,
+                             static_cast<int>(riskyItems.size()), LimitedList(lines, 40), L"", nullptr);
     if (c == Choice::Cancel) return;
-    for (const auto& l : p.lines) Log(L"  plan: " + l);
-    if (c == Choice::All) p.items.insert(p.items.end(), riskyItems.begin(), riskyItems.end());
-    else if (!riskyItems.empty()) Log(L"Omitido(s) por ser crítico(s): " + std::to_wstring(riskyItems.size()));
-    if (p.items.empty()) { Log(L"No queda nada que hacer."); return; }
+    for (const auto& l : lines) Log(F("log.plan", {l}));
+    if (c == Choice::All) items.insert(items.end(), riskyItems.begin(), riskyItems.end());
+    else if (!riskyItems.empty()) Log(P("log.skippedcrit", static_cast<long long>(riskyItems.size())));
+    if (items.empty()) { Log(T("log.nothing")); return; }
     Job job;
-    job.title = L"Cambiar tipo de inicio a " + sg::StartModeLabel(mode, false);
-    job.items = std::move(p.items);
+    job.title = F("job.mode", {sg::StartModeLabel(mode, false)});
+    job.items = std::move(items);
     RunJob(std::move(job));
 }
 
 // kind: 0 iniciar, 1 detener, 2 reiniciar
 void DoStartStop(const std::vector<int>& targets, int kind) {
-    if (targets.empty()) { MessageBoxW(g.wnd, L"No hay servicios marcados.", L"ServiGestWin10", MB_ICONINFORMATION); return; }
+    if (targets.empty()) { Message(T("msg.nochecked"), MB_ICONINFORMATION); return; }
     if (!RequireAdmin()) return;
-    const wchar_t* verb = kind == 0 ? L"iniciar" : kind == 1 ? L"detener" : L"reiniciar";
+    static const char* const kTitle[] = {"dlg.ss.title.start", "dlg.ss.title.stop", "dlg.ss.title.restart"};
+    static const char* const kCount[] = {"dlg.ss.count.start", "dlg.ss.count.stop", "dlg.ss.count.restart"};
+    static const char* const kJob[] = {"job.start", "job.stop", "job.restart"};
 
     std::vector<int> work, riskyRows;
-    std::vector<std::wstring> lines, riskyNames;
+    std::vector<std::wstring> lines;
     int skipped = 0, disabled = 0;
     for (int ri : targets) {
         const Row& r = g.rows[static_cast<size_t>(ri)];
-        if (kind == 0 && !sg::IsStoppedLike(r.info.state)) { ++skipped; continue; }
-        if (kind == 1 && sg::IsStoppedLike(r.info.state)) { ++skipped; continue; }
-        if (kind == 2 && sg::IsStoppedLike(r.info.state)) { ++skipped; continue; }  // reiniciar sólo los activos
-        if (kind != 1 && r.info.mode == StartMode::Disabled && kind == 0) ++disabled;
+        const bool stopped = sg::IsStoppedLike(r.info.state);
+        if ((kind == 0 && !stopped) || (kind != 0 && stopped)) { ++skipped; continue; }  // reiniciar: sólo activos
+        if (kind == 0 && r.info.mode == StartMode::Disabled) ++disabled;
         const bool risky = kind != 0 && sg::IsRiskyStop(r.info.name);
-        lines.push_back((risky ? L"[CRÍTICO] " : L"") + r.info.displayName + L" (" + r.info.name + L") - " + r.col[COL_STATE]);
-        if (risky) { riskyRows.push_back(ri); riskyNames.push_back(r.info.name); }
-        else work.push_back(ri);
+        lines.push_back(F("line.state", {CritTag(risky), r.info.displayName, r.info.name, r.col[COL_STATE]}));
+        (risky ? riskyRows : work).push_back(ri);
     }
     if (work.empty() && riskyRows.empty()) {
-        std::wstring m = kind == 0 ? L"Todos los servicios marcados ya están en ejecución."
-                                   : L"Todos los servicios marcados ya están detenidos.";
-        MessageBoxW(g.wnd, m.c_str(), L"ServiGestWin10", MB_ICONINFORMATION);
+        Message(T(kind == 0 ? "msg.allrunning" : "msg.allstopped"), MB_ICONINFORMATION);
         return;
     }
-    std::wstring content = L"Servicios a " + std::wstring(verb) + L": " + std::to_wstring(work.size() + riskyRows.size());
-    if (skipped) content += L"\nSe omiten " + std::to_wstring(skipped) + (kind == 0 ? L" que ya están en ejecución." : L" que ya están detenidos.");
-    if (disabled) content += L"\n" + std::to_wstring(disabled) + L" están Deshabilitados y no podrán iniciarse hasta cambiar su tipo de inicio.";
+    std::wstring content = P(kCount[kind], static_cast<long long>(work.size() + riskyRows.size()));
+    if (skipped) content += L"\n" + P(kind == 0 ? "dlg.ss.skip.start" : "dlg.ss.skip.stop", skipped);
+    if (disabled) content += L"\n" + P("dlg.ss.disabled", disabled);
     const int hidden = HiddenCount(targets);
-    if (hidden) content += L"\nAtención: " + std::to_wstring(hidden) + L" de los marcados no están visibles por el filtro.";
-    if (!riskyNames.empty())
-        content += L"\n\n" + Plural(riskyNames.size(), L"es un servicio CRÍTICO", L"son servicios CRÍTICOS") +
-                   L"; detenerlos puede bloquear o desestabilizar Windows.";
+    if (hidden) content += L"\n" + P("dlg.hidden", hidden);
+    if (!riskyRows.empty()) content += L"\n\n" + P("dlg.ss.critical", static_cast<long long>(riskyRows.size()));
     bool stopDeps = true;
-    const Choice c = Confirm(L"¿" + std::wstring(1, static_cast<wchar_t>(towupper(verb[0]))) + (verb + 1) +
-                                 L" los servicios seleccionados?",
-                             content, static_cast<int>(riskyNames.size()), LimitedList(lines, 40),
-                             kind != 0 ? L"Detener también los servicios que dependen de ellos" : nullptr,
-                             kind != 0 ? &stopDeps : nullptr);
+    const Choice c = Confirm(T(kTitle[kind]), content, static_cast<int>(riskyRows.size()), LimitedList(lines, 40),
+                             kind != 0 ? T("dlg.ss.deps") : L"", kind != 0 ? &stopDeps : nullptr);
     if (c == Choice::Cancel) return;
     if (c == Choice::All) work.insert(work.end(), riskyRows.begin(), riskyRows.end());
-    else if (!riskyRows.empty()) Log(L"Omitido(s) por ser crítico(s): " + std::to_wstring(riskyRows.size()));
-    if (work.empty()) { Log(L"No queda nada que hacer."); return; }
+    else if (!riskyRows.empty()) Log(P("log.skippedcrit", static_cast<long long>(riskyRows.size())));
+    if (work.empty()) { Log(T("log.nothing")); return; }
 
     Job job;
-    job.title = kind == 0 ? L"Iniciar servicios" : kind == 1 ? L"Detener servicios" : L"Reiniciar servicios";
+    job.title = T(kJob[kind]);
     job.stopDependents = stopDeps;
     job.skipCriticalDependents = c != Choice::All;
     for (int ri : work) {
@@ -718,17 +736,19 @@ void DoStartStop(const std::vector<int>& targets, int kind) {
 
 void DoSave() {
     FullRefresh();
-    std::wstring name = DefaultCsvName();
+    const std::wstring name = DefaultCsvName();
     wchar_t file[MAX_PATH * 2];
     lstrcpynW(file, name.c_str(), ARRAYSIZE(file));
+    const std::wstring filter = FileFilter("file.filter.savecsv", L"*.csv");
+    const std::wstring title = T("save.title");
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = g.wnd;
-    ofn.lpstrFilter = L"CSV separado por punto y coma (*.csv)\0*.csv\0Todos los archivos (*.*)\0*.*\0";
+    ofn.lpstrFilter = filter.c_str();
     ofn.lpstrFile = file;
     ofn.nMaxFile = ARRAYSIZE(file);
     ofn.lpstrDefExt = L"csv";
-    ofn.lpstrTitle = L"Guardar el estado actual de todos los servicios";
+    ofn.lpstrTitle = title.c_str();
     ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
     if (!GetSaveFileNameW(&ofn)) return;
 
@@ -738,23 +758,25 @@ void DoSave() {
         if (r.info.configOk) v.push_back({r.info.name, r.info.displayName, r.info.mode, r.info.state});
     std::wstring err;
     if (!WriteAll(file, sg::WriteCsv(v), err)) {
-        MessageBoxW(g.wnd, (L"No se pudo guardar el archivo:\n" + err).c_str(), L"ServiGestWin10", MB_ICONERROR);
+        Message(F("msg.savefail", {err}), MB_ICONERROR);
         return;
     }
-    Log(L"Estado de " + std::to_wstring(v.size()) + L" servicios guardado en " + file);
-    SetStatusPart(2, L"Estado guardado");
+    Log(P("log.saved", static_cast<long long>(v.size()), {file}));
+    SetStatusPart(2, T("status.saved"));
 }
 
 void DoRestore() {
     if (!RequireAdmin()) return;
     wchar_t file[MAX_PATH * 2] = L"";
+    const std::wstring filter = FileFilter("file.filter.csvopen", L"*.csv");
+    const std::wstring title = T("restore.title");
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = g.wnd;
-    ofn.lpstrFilter = L"CSV (*.csv)\0*.csv\0Todos los archivos (*.*)\0*.*\0";
+    ofn.lpstrFilter = filter.c_str();
     ofn.lpstrFile = file;
     ofn.nMaxFile = ARRAYSIZE(file);
-    ofn.lpstrTitle = L"Restaurar el estado de los servicios desde un archivo";
+    ofn.lpstrTitle = title.c_str();
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
     if (!GetOpenFileNameW(&ofn)) return;
 
@@ -762,7 +784,7 @@ void DoRestore() {
     std::wstring err;
     std::vector<sg::SavedService> saved;
     if (!ReadAll(file, data, err) || !sg::ParseCsv(data, saved, err)) {
-        MessageBoxW(g.wnd, (L"No se pudo leer el archivo:\n" + err).c_str(), L"ServiGestWin10", MB_ICONERROR);
+        Message(F("msg.readfail", {err}), MB_ICONERROR);
         return;
     }
     if (!FullRefresh()) return;
@@ -771,13 +793,12 @@ void DoRestore() {
         if (r.info.configOk) cur.push_back({r.info.name, r.info.displayName, r.info.mode, r.info.state});
     const sg::RestorePlan plan = sg::BuildRestorePlan(saved, cur);
 
-    Log(L"Plan de restauración desde " + std::wstring(file) + L": " + std::to_wstring(saved.size()) + L" servicios en el archivo.");
-    for (const auto& n : plan.notes) Log(L"  Nota: " + n);
-    for (const auto& m : plan.missing) Log(L"  No existe en este equipo: " + m);
+    Log(P("log.restoreplan", static_cast<long long>(saved.size()), {file}));
+    for (const auto& n : plan.notes) Log(F("log.note", {n}));
+    for (const auto& m : plan.missing) Log(F("log.missing", {m}));
     if (plan.ops.empty()) {
-        std::wstring m = L"El estado actual ya coincide con el archivo.\n\nSin cambios: " + std::to_wstring(plan.unchanged) +
-                         L"\nNo encontrados en este equipo: " + std::to_wstring(plan.missing.size());
-        MessageBoxW(g.wnd, m.c_str(), L"ServiGestWin10", MB_ICONINFORMATION);
+        Message(F("msg.restore.nochange", {N(plan.unchanged), N(static_cast<long long>(plan.missing.size()))}),
+                MB_ICONINFORMATION);
         return;
     }
     int nMode = 0, nStop = 0, nStart = 0, nRisky = 0;
@@ -787,23 +808,18 @@ void DoRestore() {
         else if (op.kind == OpKind::Stop) ++nStop;
         else ++nStart;
         if (op.risky) ++nRisky;
-        lines.push_back((op.risky ? L"[CRÍTICO] " : L"") + std::wstring(OpName(op.kind)) + L": " + op.displayName +
-                        L" (" + op.name + L") " + op.note);
+        lines.push_back(F("line.restore", {CritTag(op.risky), OpName(op.kind), op.displayName, op.name, op.note}));
     }
-    for (const auto& l : lines) Log(L"  plan: " + l);
-    std::wstring content = L"Cambios de tipo de inicio: " + std::to_wstring(nMode) + L"\nServicios a detener: " +
-                           std::to_wstring(nStop) + L"\nServicios a iniciar: " + std::to_wstring(nStart) +
-                           L"\nSin cambios: " + std::to_wstring(plan.unchanged) +
-                           L"\nNo existen en este equipo: " + std::to_wstring(plan.missing.size());
-    if (nRisky)
-        content += L"\n\n" + Plural(static_cast<size_t>(nRisky), L"operación afecta", L"operaciones afectan") +
-                   L" negativamente a servicios CRÍTICOS.";
+    for (const auto& l : lines) Log(F("log.plan", {l}));
+    std::wstring content = F("dlg.restore.summary", {N(nMode), N(nStop), N(nStart), N(plan.unchanged),
+                                                      N(static_cast<long long>(plan.missing.size()))});
+    if (nRisky) content += L"\n\n" + P("dlg.restore.critical", nRisky);
     bool stopDeps = true;
-    const Choice c = Confirm(L"¿Restaurar el estado guardado de los servicios?", content, nRisky, LimitedList(lines, 40),
-                             L"Al detener, detener también los servicios dependientes", &stopDeps);
+    const Choice c = Confirm(T("dlg.restore.title"), content, nRisky, LimitedList(lines, 40), T("dlg.restore.deps"),
+                             &stopDeps);
     if (c == Choice::Cancel) return;
     Job job;
-    job.title = L"Restaurar estado desde archivo";
+    job.title = T("job.restore");
     job.stopDependents = stopDeps;
     job.skipCriticalDependents = c != Choice::All;
     int omitted = 0;
@@ -811,39 +827,17 @@ void DoRestore() {
         if (op.risky && c != Choice::All) { ++omitted; continue; }
         job.items.push_back({op.kind, op.name, op.displayName, op.mode});
     }
-    if (omitted) Log(L"Operaciones omitidas por afectar a servicios críticos: " + std::to_wstring(omitted));
-    if (job.items.empty()) { Log(L"No queda nada que hacer."); return; }
+    if (omitted) Log(P("log.opsomitted", omitted));
+    if (job.items.empty()) { Log(T("log.nothing")); return; }
     RunJob(std::move(job));
 }
 
-void ShowLegend() {
-    MessageBoxW(g.wnd,
-                L"Filas en ROJO (con marca roja a la izquierda):\n"
-                L"Servicios que NO deben detenerse ni deshabilitarse bajo ningún concepto. "
-                L"El motivo aparece en la columna \"Crítico / nota\". Al intentar modificarlos "
-                L"la aplicación pide confirmación y propone omitirlos.\n\n"
-                L"Texto NARANJA en \"Inicio por defecto (Win10)\":\n"
-                L"El tipo de inicio actual es distinto del que trae Windows 10 por defecto.\n\n"
-                L"\"Inicio por defecto (Win10)\":\n"
-                L"Valor de una instalación limpia de Windows 10 Pro 22H2 (fuente: winhelponline.com). "
-                L"Puede variar según la edición, la versión, el hardware y el software instalado. "
-                L"\"Desconocido\" = servicio de terceros o no incluido en la tabla.\n\n"
-                L"Casilla de la cabecera: marca o desmarca todos los servicios mostrados.",
-                L"ServiGestWin10 - Leyenda", MB_ICONINFORMATION);
-}
+void ShowLegend() { Message(T("legend.text"), MB_ICONINFORMATION, T("legend.title")); }
 
 void ShowAbout() {
-    std::wstring s = L"ServiGestWin10 " SG_VERSION_WSTR L"\nGestor masivo de servicios para Windows 10\n\n"
-                     L"C++17 / API Win32 nativa, sin dependencias externas.\n\n"
-                     L"Tabla de inicio por defecto: " + std::to_wstring(sg::DefaultTableSize()) +
-                     L" servicios (Windows 10 Pro 22H2).\nServicios críticos conocidos: " +
-                     std::to_wstring(sg::CriticalTableSize()) +
-                     L".\n\nLínea de comandos (consola de administrador):\n"
-                     L"  ServiGestWin10.exe /export archivo.csv\n"
-                     L"  ServiGestWin10.exe /import archivo.csv            (simulación)\n"
-                     L"  ServiGestWin10.exe /import archivo.csv /apply\n"
-                     L"  ... /apply /includecritical   (también críticos)";
-    MessageBoxW(g.wnd, s.c_str(), L"Acerca de ServiGestWin10", MB_ICONINFORMATION);
+    Message(F("about.text", {SG_VERSION_WSTR, N(static_cast<long long>(sg::DefaultTableSize())),
+                             N(static_cast<long long>(sg::CriticalTableSize())), ActiveLanguageName()}),
+            MB_ICONINFORMATION, T("about.title"));
 }
 
 void CopySelectedNames() {
@@ -860,159 +854,236 @@ void CopySelectedNames() {
     CloseClipboard();
 }
 
-// ------------------------------------------------------------ creación / layout
+// ------------------------------------------------------------ creación / layout / idioma
 
-HWND MakeButton(int id, const wchar_t* text) {
-    HWND h = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 10, 10,
-                             g.wnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), g.inst, nullptr);
-    SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
+int TextWidth(const std::wstring& text) {
     HDC dc = GetDC(g.wnd);
     HGDIOBJ old = SelectObject(dc, g.font);
     SIZE sz{};
-    GetTextExtentPoint32W(dc, text, lstrlenW(text), &sz);
-    SelectObject(dc, old);
-    ReleaseDC(g.wnd, dc);
-    g.buttons[id] = h;
-    g.buttonWidth[id] = sz.cx + S(22);
-    return h;
-}
-
-HWND MakeLabel(int id, const wchar_t* text) {
-    HWND h = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, 0, 0, 10, 10, g.wnd,
-                             reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), g.inst, nullptr);
-    SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
-    return h;
-}
-
-int TextWidth(const wchar_t* text) {
-    HDC dc = GetDC(g.wnd);
-    HGDIOBJ old = SelectObject(dc, g.font);
-    SIZE sz{};
-    GetTextExtentPoint32W(dc, text, lstrlenW(text), &sz);
+    GetTextExtentPoint32W(dc, text.c_str(), static_cast<int>(text.size()), &sz);
     SelectObject(dc, old);
     ReleaseDC(g.wnd, dc);
     return sz.cx;
 }
 
-void BuildMenu() {
-    HMENU file = CreatePopupMenu();
-    AppendMenuW(file, MF_STRING, IDB_SAVE, L"&Guardar estado de todos los servicios...\tCtrl+S");
-    AppendMenuW(file, MF_STRING, IDB_RESTORE, L"&Restaurar estado desde archivo...\tCtrl+O");
-    AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(file, MF_STRING | (g.elevated ? MF_GRAYED : 0), IDM_ELEVATE, L"Reiniciar como &administrador");
-    AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(file, MF_STRING, IDM_EXIT, L"&Salir");
-
-    HMENU view = CreatePopupMenu();
-    AppendMenuW(view, MF_STRING, IDB_REFRESH, L"&Actualizar\tF5");
-    AppendMenuW(view, MF_STRING, IDM_FIND, L"&Buscar\tCtrl+F");
-    AppendMenuW(view, MF_STRING, IDM_CLEARLOG, L"&Limpiar registro");
-
-    HMENU sel = CreatePopupMenu();
-    AppendMenuW(sel, MF_STRING, IDB_CHECKALL, L"&Marcar todos los mostrados");
-    AppendMenuW(sel, MF_STRING, IDB_UNCHECKALL, L"&Desmarcar todos los mostrados");
-    AppendMenuW(sel, MF_STRING, IDB_INVERT, L"&Invertir marcas de los mostrados");
-    AppendMenuW(sel, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(sel, MF_STRING, IDM_CHECKSEL, L"Marcar las filas &seleccionadas");
-    AppendMenuW(sel, MF_STRING, IDM_UNCHECKSEL, L"Desmarcar las filas s&eleccionadas");
-    AppendMenuW(sel, MF_STRING, IDM_UNCHECKCRIT, L"Desmarcar los servicios &críticos");
-
-    HMENU svc = CreatePopupMenu();
-    AppendMenuW(svc, MF_STRING, IDB_APPLYMODE, L"Aplicar &tipo de inicio a los marcados");
-    AppendMenuW(svc, MF_STRING, IDB_START, L"&Iniciar los marcados");
-    AppendMenuW(svc, MF_STRING, IDB_STOP, L"&Detener los marcados");
-    AppendMenuW(svc, MF_STRING, IDB_RESTART, L"&Reiniciar los marcados");
-    AppendMenuW(svc, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(svc, MF_STRING | MF_GRAYED, IDB_CANCEL, L"&Cancelar la operación en curso");
-
-    HMENU help = CreatePopupMenu();
-    AppendMenuW(help, MF_STRING, IDM_LEGEND, L"&Leyenda de colores");
-    AppendMenuW(help, MF_STRING, IDM_ABOUT, L"&Acerca de...");
-
-    g.menu = CreateMenu();
-    AppendMenuW(g.menu, MF_POPUP, reinterpret_cast<UINT_PTR>(file), L"&Archivo");
-    AppendMenuW(g.menu, MF_POPUP, reinterpret_cast<UINT_PTR>(view), L"&Ver");
-    AppendMenuW(g.menu, MF_POPUP, reinterpret_cast<UINT_PTR>(sel), L"&Selección");
-    AppendMenuW(g.menu, MF_POPUP, reinterpret_cast<UINT_PTR>(svc), L"S&ervicios");
-    AppendMenuW(g.menu, MF_POPUP, reinterpret_cast<UINT_PTR>(help), L"A&yuda");
-    SetMenu(g.wnd, g.menu);
+HWND MakeButton(int id) {
+    HWND h = CreateWindowExW(0, L"BUTTON", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON, 0, 0, 10, 10,
+                             g.wnd, reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), g.inst, nullptr);
+    g.buttons[id] = h;
+    return h;
 }
 
-void CreateControls() {
+HWND MakeLabel(int id) {
+    return CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE, 0, 0, 10, 10, g.wnd,
+                           reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), g.inst, nullptr);
+}
+
+void CreateUiFont() {
     NONCLIENTMETRICSW ncm{};
     ncm.cbSize = sizeof(ncm);
     SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
+    const std::wstring face = sg::langwin::PreferredFontFace();
+    if (!face.empty()) lstrcpynW(ncm.lfMessageFont.lfFaceName, face.c_str(), LF_FACESIZE);
+    HFONT old = g.font;
     g.font = CreateFontIndirectW(&ncm.lfMessageFont);
+    if (old) DeleteObject(old);
+}
 
-    MakeButton(IDB_REFRESH, L"Actualizar (F5)");
-    MakeButton(IDB_CHECKALL, L"Marcar todo");
-    MakeButton(IDB_UNCHECKALL, L"Desmarcar todo");
-    MakeButton(IDB_INVERT, L"Invertir marcas");
-    g.lblFilter = MakeLabel(IDC_LBL_FILTER, L"Buscar:");
+void ApplyFontToChildren() {
+    for (HWND h = GetWindow(g.wnd, GW_CHILD); h; h = GetWindow(h, GW_HWNDNEXT))
+        SendMessageW(h, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
+}
+
+void UpdateLanguageMenuChecks() {
+    if (!g.menu) return;
+    const bool busy = g.busy;
+    CheckMenuItem(g.menu, IDM_LANG_AUTO, MF_BYCOMMAND | (g.langPref.empty() ? MF_CHECKED : MF_UNCHECKED));
+    EnableMenuItem(g.menu, IDM_LANG_AUTO, MF_BYCOMMAND | (busy ? MF_GRAYED : MF_ENABLED));
+    const auto& langs = sg::i18n::SupportedLanguages();
+    for (size_t i = 0; i < langs.size(); ++i) {
+        const UINT id = static_cast<UINT>(IDM_LANG_FIRST + static_cast<int>(i));
+        const bool active = !g.langPref.empty() && sg::i18n::ActiveLanguage() == langs[i].code;
+        CheckMenuItem(g.menu, id, MF_BYCOMMAND | (active ? MF_CHECKED : MF_UNCHECKED));
+        EnableMenuItem(g.menu, id, MF_BYCOMMAND | (busy ? MF_GRAYED : MF_ENABLED));
+    }
+}
+
+void BuildMenu() {
+    HMENU file = CreatePopupMenu();
+    AppendMenuW(file, MF_STRING, IDB_SAVE, (T("menu.file.save") + L"\tCtrl+S").c_str());
+    AppendMenuW(file, MF_STRING, IDB_RESTORE, (T("menu.file.restore") + L"\tCtrl+O").c_str());
+    AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(file, MF_STRING | (g.elevated ? MF_GRAYED : 0), IDM_ELEVATE, T("menu.file.elevate").c_str());
+    AppendMenuW(file, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(file, MF_STRING, IDM_EXIT, T("menu.file.exit").c_str());
+
+    HMENU view = CreatePopupMenu();
+    AppendMenuW(view, MF_STRING, IDB_REFRESH, (T("menu.view.refresh") + L"\tF5").c_str());
+    AppendMenuW(view, MF_STRING, IDM_FIND, (T("menu.view.find") + L"\tCtrl+F").c_str());
+    AppendMenuW(view, MF_STRING, IDM_CLEARLOG, T("menu.view.clearlog").c_str());
+
+    HMENU sel = CreatePopupMenu();
+    AppendMenuW(sel, MF_STRING, IDB_CHECKALL, T("menu.sel.checkall").c_str());
+    AppendMenuW(sel, MF_STRING, IDB_UNCHECKALL, T("menu.sel.uncheckall").c_str());
+    AppendMenuW(sel, MF_STRING, IDB_INVERT, T("menu.sel.invert").c_str());
+    AppendMenuW(sel, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(sel, MF_STRING, IDM_CHECKSEL, T("menu.sel.checksel").c_str());
+    AppendMenuW(sel, MF_STRING, IDM_UNCHECKSEL, T("menu.sel.unchecksel").c_str());
+    AppendMenuW(sel, MF_STRING, IDM_UNCHECKCRIT, T("menu.sel.uncheckcrit").c_str());
+
+    HMENU svc = CreatePopupMenu();
+    AppendMenuW(svc, MF_STRING, IDB_APPLYMODE, T("menu.svc.applymode").c_str());
+    AppendMenuW(svc, MF_STRING, IDB_START, T("menu.svc.start").c_str());
+    AppendMenuW(svc, MF_STRING, IDB_STOP, T("menu.svc.stop").c_str());
+    AppendMenuW(svc, MF_STRING, IDB_RESTART, T("menu.svc.restart").c_str());
+    AppendMenuW(svc, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(svc, MF_STRING | (g.busy ? 0 : MF_GRAYED), IDB_CANCEL, T("menu.svc.cancel").c_str());
+
+    // Los nombres de idioma se muestran siempre en su propio idioma ("Français", "简体中文"),
+    // para que cualquiera encuentre el suyo aunque no entienda el idioma actual.
+    HMENU lang = CreatePopupMenu();
+    AppendMenuW(lang, MF_STRING, IDM_LANG_AUTO, T("menu.language.auto").c_str());
+    AppendMenuW(lang, MF_SEPARATOR, 0, nullptr);
+    const auto& langs = sg::i18n::SupportedLanguages();
+    for (size_t i = 0; i < langs.size(); ++i)
+        AppendMenuW(lang, MF_STRING, static_cast<UINT_PTR>(IDM_LANG_FIRST + static_cast<int>(i)), langs[i].nativeName);
+
+    HMENU help = CreatePopupMenu();
+    AppendMenuW(help, MF_STRING, IDM_LEGEND, T("menu.help.legend").c_str());
+    AppendMenuW(help, MF_STRING, IDM_ABOUT, T("menu.help.about").c_str());
+
+    HMENU bar = CreateMenu();
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(file), T("menu.file").c_str());
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(view), T("menu.view").c_str());
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(sel), T("menu.sel").c_str());
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(svc), T("menu.svc").c_str());
+    // En los archivos de idioma, "menu.language" incluye la palabra inglesa ("Idioma / Language")
+    // para que cualquiera encuentre el menú aunque no entienda el idioma actual.
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(lang), T("menu.language").c_str());
+    AppendMenuW(bar, MF_POPUP, reinterpret_cast<UINT_PTR>(help), T("menu.help").c_str());
+
+    HMENU old = g.menu;
+    g.menu = bar;
+    SetMenu(g.wnd, g.menu);
+    if (old) DestroyMenu(old);
+    UpdateLanguageMenuChecks();
+    if (g.busy) EnableActions(false);
+}
+
+void CreateControls() {
+    CreateUiFont();
+    for (const auto& b : kButtons) MakeButton(b.id);
+    EnableWindow(g.buttons[IDB_CANCEL], FALSE);
+    g.lblFilter = MakeLabel(IDC_LBL_FILTER);
     g.filter = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
                                0, 0, 10, 10, g.wnd, reinterpret_cast<HMENU>(IDC_FILTER), g.inst, nullptr);
-    SendMessageW(g.filter, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
-    SendMessageW(g.filter, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"nombre, nombre de servicio o descripción"));
-
-    g.lblMode = MakeLabel(IDC_LBL_MODE, L"Tipo de inicio:");
+    g.lblMode = MakeLabel(IDC_LBL_MODE);
     g.mode = CreateWindowExW(0, WC_COMBOBOXW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST,
                              0, 0, 10, 10, g.wnd, reinterpret_cast<HMENU>(IDC_MODE), g.inst, nullptr);
-    SendMessageW(g.mode, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
-    const StartMode modes[] = {StartMode::Automatic, StartMode::AutomaticDelayed, StartMode::Manual, StartMode::Disabled};
-    for (StartMode m : modes) {
-        const std::wstring label = sg::StartModeLabel(m, false);
-        const LRESULT i = SendMessageW(g.mode, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
-        SendMessageW(g.mode, CB_SETITEMDATA, static_cast<WPARAM>(i), static_cast<LPARAM>(m));
-    }
-    SendMessageW(g.mode, CB_SETCURSEL, 2, 0);  // Manual
-
-    MakeButton(IDB_APPLYMODE, L"Aplicar a marcados");
-    MakeButton(IDB_START, L"Iniciar marcados");
-    MakeButton(IDB_STOP, L"Detener marcados");
-    MakeButton(IDB_RESTART, L"Reiniciar marcados");
-    MakeButton(IDB_SAVE, L"Guardar estado...");
-    MakeButton(IDB_RESTORE, L"Restaurar estado...");
-    MakeButton(IDB_CANCEL, L"Cancelar");
-    EnableWindow(g.buttons[IDB_CANCEL], FALSE);
 
     g.list = CreateWindowExW(WS_EX_CLIENTEDGE, WC_LISTVIEWW, L"",
                              WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT | LVS_SHOWSELALWAYS, 0, 0, 10, 10, g.wnd,
                              reinterpret_cast<HMENU>(IDC_LIST), g.inst, nullptr);
-    SendMessageW(g.list, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
     ListView_SetExtendedListViewStyle(g.list, LVS_EX_CHECKBOXES | LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER |
                                                   LVS_EX_HEADERDRAGDROP | LVS_EX_LABELTIP | LVS_EX_INFOTIP);
     SetWindowTheme(g.list, L"Explorer", nullptr);
-
-    struct ColDef { const wchar_t* title; int width; };
-    const ColDef cols[COL_COUNT] = {
-        {L"Nombre", 260}, {L"Nombre del servicio", 170}, {L"Descripción", 320}, {L"Estado", 95},
-        {L"Tipo de inicio", 200}, {L"Inicio por defecto (Win10)", 220}, {L"Iniciar sesión como", 125},
-        {L"Crítico / nota", 380},
-    };
     for (int i = 0; i < COL_COUNT; ++i) {
         LVCOLUMNW c{};
         c.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
-        c.pszText = const_cast<LPWSTR>(cols[i].title);
-        c.cx = S(cols[i].width);
+        c.pszText = const_cast<LPWSTR>(L"");
+        c.cx = S(kColumnWidths[i]);
         c.iSubItem = i;
         ListView_InsertColumn(g.list, i, &c);
     }
     HWND hdr = ListView_GetHeader(g.list);
     SetWindowLongPtrW(hdr, GWL_STYLE, GetWindowLongPtrW(hdr, GWL_STYLE) | HDS_CHECKBOXES);
-    UpdateHeader();
 
     g.log = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
                             WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL, 0, 0, 10,
                             10, g.wnd, reinterpret_cast<HMENU>(IDC_LOG), g.inst, nullptr);
-    SendMessageW(g.log, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
     SendMessageW(g.log, EM_SETLIMITTEXT, 4 * 1024 * 1024, 0);
 
     g.status = CreateWindowExW(0, STATUSCLASSNAMEW, L"", WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP, 0, 0, 0, 0, g.wnd,
                                reinterpret_cast<HMENU>(IDC_STATUS), g.inst, nullptr);
-    SendMessageW(g.status, WM_SETFONT, reinterpret_cast<WPARAM>(g.font), TRUE);
+    ApplyFontToChildren();
+}
+
+void Layout(int cx, int cy);
+void AutoSizeLanguageColumns();
+
+// Pone todos los textos de la ventana en el idioma activo (al crearla y al cambiar de idioma).
+void ApplyLanguageTexts() {
+    std::wstring title = T("app.title");
+    if (!g.elevated) title += L"  " + T("app.title.readonly");
+    SetWindowTextW(g.wnd, title.c_str());
+    BuildMenu();
+    for (const auto& b : kButtons) {
+        const std::wstring t = T(b.key);
+        SetWindowTextW(g.buttons[b.id], t.c_str());
+        g.buttonWidth[b.id] = TextWidth(t) + S(22);
+    }
+    SetWindowTextW(g.lblFilter, T("lbl.search").c_str());
+    SetWindowTextW(g.lblMode, T("lbl.mode").c_str());
+    const std::wstring cue = T("search.cue");
+    SendMessageW(g.filter, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(cue.c_str()));
+
+    int sel = static_cast<int>(SendMessageW(g.mode, CB_GETCURSEL, 0, 0));
+    if (sel < 0) sel = 2;  // Manual
+    SendMessageW(g.mode, CB_RESETCONTENT, 0, 0);
+    for (StartMode m : kModes) {
+        const std::wstring label = sg::StartModeLabel(m, false);
+        const LRESULT i = SendMessageW(g.mode, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+        SendMessageW(g.mode, CB_SETITEMDATA, static_cast<WPARAM>(i), static_cast<LPARAM>(m));
+    }
+    SendMessageW(g.mode, CB_SETCURSEL, static_cast<WPARAM>(sel), 0);
+
+    for (int i = 0; i < COL_COUNT; ++i) {
+        const std::wstring t = T(kColumnKeys[i]);
+        LVCOLUMNW c{};
+        c.mask = LVCF_TEXT;
+        c.pszText = const_cast<LPWSTR>(t.c_str());
+        ListView_SetColumn(g.list, i, &c);
+    }
+    AutoSizeLanguageColumns();
+    UpdateHeader();
+    RECT rc;
+    GetClientRect(g.wnd, &rc);
+    Layout(rc.right, rc.bottom);
+}
+
+// Ajusta el ancho de las columnas cuyo contenido depende del idioma (estado y tipos de inicio)
+// para que la etiqueta más larga del idioma activo quepa entera.
+void AutoSizeLanguageColumns() {
+    int stateW = TextWidth(T(kColumnKeys[COL_STATE]));
+    for (RunState s : {RunState::Stopped, RunState::StartPending, RunState::StopPending, RunState::Running,
+                       RunState::ContinuePending, RunState::PausePending, RunState::Paused})
+        stateW = std::max(stateW, TextWidth(sg::RunStateLabel(s)));
+    int modeW = std::max(TextWidth(T(kColumnKeys[COL_START])), TextWidth(T(kColumnKeys[COL_DEFAULT])));
+    for (StartMode m : kModes)
+        for (bool trig : {false, true}) modeW = std::max(modeW, TextWidth(sg::StartModeLabel(m, trig)));
+    const int pad = S(18);
+    ListView_SetColumnWidth(g.list, COL_STATE, stateW + pad);
+    ListView_SetColumnWidth(g.list, COL_START, modeW + pad);
+    ListView_SetColumnWidth(g.list, COL_DEFAULT, modeW + pad);
+}
+
+void SwitchLanguage(const std::wstring& pref /* "" = automático */) {
+    if (g.busy) return;
+    const std::wstring code = pref.empty() ? sg::i18n::ResolveLanguage(sg::langwin::WindowsUiLanguages()) : pref;
+    if (!sg::i18n::SetActiveLanguage(code)) return;
+    g.langPref = pref;
+    sg::langwin::SavePreference(pref);
+    CreateUiFont();
+    ApplyFontToChildren();
+    ApplyLanguageTexts();
+    for (auto& r : g.rows) DeriveRow(r);
+    RebuildList();
+    InvalidateRect(g.wnd, nullptr, TRUE);
+    Log(F("log.langchanged", {ActiveLanguageName()}));
 }
 
 void Layout(int cx, int cy) {
+    if (!g.status) return;
     SendMessageW(g.status, WM_SIZE, 0, 0);
     RECT sr{};
     GetWindowRect(g.status, &sr);
@@ -1032,20 +1103,20 @@ void Layout(int cx, int cy) {
         x += g.buttonWidth[id] + gap;
     }
     x += S(10);
-    const int lw = TextWidth(L"Buscar:") + S(6);
+    const int lw = TextWidth(WindowText(g.lblFilter)) + S(6);
     place(g.lblFilter, x, y, lw, bh);
     x += lw;
     place(g.filter, x, y + S(1), std::max(S(150), std::min(S(460), cx - m - x)), bh - S(2));
     // fila 2
     x = m;
     y += bh + gap;
-    const int lm = TextWidth(L"Tipo de inicio:") + S(6);
+    const int lm = TextWidth(WindowText(g.lblMode)) + S(6);
     place(g.lblMode, x, y, lm, bh);
     x += lm;
-    place(g.mode, x, y + S(1), S(210), S(200));
-    x += S(210) + gap;
-    for (int id : {IDB_APPLYMODE}) { place(g.buttons[id], x, y, g.buttonWidth[id], bh); x += g.buttonWidth[id] + gap; }
-    x += S(12);
+    place(g.mode, x, y + S(1), S(230), S(200));
+    x += S(230) + gap;
+    place(g.buttons[IDB_APPLYMODE], x, y, g.buttonWidth[IDB_APPLYMODE], bh);
+    x += g.buttonWidth[IDB_APPLYMODE] + gap + S(12);
     for (int id : {IDB_START, IDB_STOP, IDB_RESTART}) { place(g.buttons[id], x, y, g.buttonWidth[id], bh); x += g.buttonWidth[id] + gap; }
     x += S(12);
     for (int id : {IDB_SAVE, IDB_RESTORE}) { place(g.buttons[id], x, y, g.buttonWidth[id], bh); x += g.buttonWidth[id] + gap; }
@@ -1151,27 +1222,35 @@ void ShowContextMenu(int x, int y) {
         x = pt.x;
         y = pt.y;
     }
-    const bool busy = g.busy;
+    const UINT dis = g.busy ? MF_GRAYED : 0;
     HMENU m = CreatePopupMenu();
-    AppendMenuW(m, MF_STRING, IDM_CHECKSEL, L"Marcar seleccionados");
-    AppendMenuW(m, MF_STRING, IDM_UNCHECKSEL, L"Desmarcar seleccionados");
+    AppendMenuW(m, MF_STRING, IDM_CHECKSEL, T("ctx.checksel").c_str());
+    AppendMenuW(m, MF_STRING, IDM_UNCHECKSEL, T("ctx.unchecksel").c_str());
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(m, MF_STRING | (busy ? MF_GRAYED : 0), IDM_CTX_START, L"Iniciar seleccionados");
-    AppendMenuW(m, MF_STRING | (busy ? MF_GRAYED : 0), IDM_CTX_STOP, L"Detener seleccionados");
-    AppendMenuW(m, MF_STRING | (busy ? MF_GRAYED : 0), IDM_CTX_RESTART, L"Reiniciar seleccionados");
-    AppendMenuW(m, MF_STRING | (busy ? MF_GRAYED : 0), IDM_CTX_MODE, L"Aplicar el tipo de inicio elegido a los seleccionados");
+    AppendMenuW(m, MF_STRING | dis, IDM_CTX_START, T("ctx.start").c_str());
+    AppendMenuW(m, MF_STRING | dis, IDM_CTX_STOP, T("ctx.stop").c_str());
+    AppendMenuW(m, MF_STRING | dis, IDM_CTX_RESTART, T("ctx.restart").c_str());
+    AppendMenuW(m, MF_STRING | dis, IDM_CTX_MODE, T("ctx.mode").c_str());
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(m, MF_STRING, IDM_COPYNAME, L"Copiar nombre del servicio");
+    AppendMenuW(m, MF_STRING, IDM_COPYNAME, T("ctx.copyname").c_str());
     TrackPopupMenu(m, TPM_RIGHTBUTTON, x, y, 0, g.wnd, nullptr);
     DestroyMenu(m);
 }
 
 void OnCommand(int id, int code, HWND ctl) {
     if (id == IDC_FILTER && code == EN_CHANGE) { SetTimer(g.wnd, TIMER_FILTER, 250, nullptr); return; }
-    if (ctl && code != BN_CLICKED && id != IDOK) return;
+    if (ctl && code != BN_CLICKED) return;
     const bool busy = g.busy;
+    const int nLangs = static_cast<int>(sg::i18n::SupportedLanguages().size());
+    if (id == IDM_LANG_AUTO) { SwitchLanguage(L""); return; }
+    if (id >= IDM_LANG_FIRST && id < IDM_LANG_FIRST + nLangs) {
+        SwitchLanguage(sg::i18n::SupportedLanguages()[static_cast<size_t>(id - IDM_LANG_FIRST)].code);
+        return;
+    }
     switch (id) {
-        case IDB_REFRESH: if (!busy) { FullRefresh(); Log(L"Lista actualizada: " + std::to_wstring(g.rows.size()) + L" servicios."); } break;
+        case IDB_REFRESH:
+            if (!busy && FullRefresh()) Log(P("log.refreshed", static_cast<long long>(g.rows.size())));
+            break;
         case IDB_CHECKALL: SetVisibleChecks(1); break;
         case IDB_UNCHECKALL: SetVisibleChecks(0); break;
         case IDB_INVERT: SetVisibleChecks(2); break;
@@ -1188,7 +1267,7 @@ void OnCommand(int id, int code, HWND ctl) {
         case IDM_CTX_MODE: if (!busy) DoApplyMode(SelectedRows()); break;
         case IDB_SAVE: if (!busy) DoSave(); break;
         case IDB_RESTORE: if (!busy) DoRestore(); break;
-        case IDB_CANCEL: if (busy) { g.cancel = true; Log(L"Cancelando... (se termina la operación del servicio actual)"); } break;
+        case IDB_CANCEL: if (busy) { g.cancel = true; Log(T("log.cancelling")); } break;
         case IDM_ELEVATE: if (!busy && RelaunchElevated(L"/elevated")) DestroyWindow(g.wnd); break;
         case IDM_FIND: SetFocus(g.filter); SendMessageW(g.filter, EM_SETSEL, 0, -1); break;
         case IDM_CLEARLOG: SetWindowTextW(g.log, L""); break;
@@ -1203,11 +1282,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_CREATE: {
             g.wnd = hwnd;
-            BuildMenu();
             CreateControls();
-            RECT rc;
-            GetClientRect(hwnd, &rc);
-            Layout(rc.right, rc.bottom);
+            ApplyLanguageTexts();
             SetTimer(hwnd, TIMER_STATUS, 3000, nullptr);
             return 0;
         }
@@ -1246,7 +1322,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (g.worker.joinable()) g.worker.join();
             g.busy = false;
             EnableActions(true);
-            const std::wstring sum = L"Terminado: " + std::to_wstring(wp) + L" correctas, " + std::to_wstring(lp) + L" con error.";
+            const std::wstring sum = F("status.done", {N(static_cast<long long>(wp)), N(static_cast<long long>(lp))});
             Log(sum);
             SetStatusPart(2, sum);
             FullRefresh();
@@ -1255,9 +1331,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case WM_CLOSE:
             if (g.busy) {
-                if (MessageBoxW(hwnd, L"Hay una operación en curso. ¿Cancelarla y salir?\n(Se espera a que termine el servicio actual.)",
-                                L"ServiGestWin10", MB_YESNO | MB_ICONQUESTION) != IDYES)
-                    return 0;
+                if (Message(T("msg.closebusy"), MB_YESNO | MB_ICONQUESTION) != IDYES) return 0;
                 g.cancel = true;
                 if (g.worker.joinable()) g.worker.join();
                 g.busy = false;
@@ -1302,68 +1376,75 @@ struct Console {
     }
 };
 
-int RunCli(const std::vector<std::wstring>& args) {
+struct CliArgs {
     bool doExport = false, doImport = false, apply = false, includeCrit = false, help = false;
-    std::wstring file;
+    std::wstring file, lang;
+    bool noElevate = false, wasElevated = false;
+};
+
+CliArgs ParseArgs(const std::vector<std::wstring>& args) {
+    CliArgs c;
     for (size_t i = 1; i < args.size(); ++i) {
         std::wstring a = sg::ToLower(args[i]);
         while (!a.empty() && (a[0] == L'/' || a[0] == L'-')) a.erase(0, 1);
-        if (a == L"export" && i + 1 < args.size()) { doExport = true; file = args[++i]; }
-        else if (a == L"import" && i + 1 < args.size()) { doImport = true; file = args[++i]; }
-        else if (a == L"apply") apply = true;
-        else if (a == L"includecritical") includeCrit = true;
-        else if (a == L"?" || a == L"h" || a == L"help") help = true;
+        if (a == L"export" && i + 1 < args.size()) { c.doExport = true; c.file = args[++i]; }
+        else if (a == L"import" && i + 1 < args.size()) { c.doImport = true; c.file = args[++i]; }
+        else if (a == L"apply") c.apply = true;
+        else if (a == L"includecritical") c.includeCrit = true;
+        else if (a == L"?" || a == L"h" || a == L"help") c.help = true;
+        else if (a.compare(0, 5, L"lang:") == 0 || a.compare(0, 5, L"lang=") == 0) c.lang = args[i].substr(args[i].find_first_of(L":=") + 1);
+        else if (a == L"lang" && i + 1 < args.size()) c.lang = args[++i];
+        else if (a == L"noelevate") c.noElevate = true;
+        else if (a == L"elevated") c.wasElevated = true;
     }
-    if (!doExport && !doImport && !help) return -1;  // modo gráfico
+    return c;
+}
 
+int RunCli(const CliArgs& a) {
+    if (!a.doExport && !a.doImport && !a.help) return -1;  // modo gráfico
     Console con;
     con.Init();
-    if (help) {
-        con.Print(L"ServiGestWin10 " SG_VERSION_WSTR L" - uso en línea de comandos:");
-        con.Print(L"  /export archivo.csv                   guarda el estado de todos los servicios");
-        con.Print(L"  /import archivo.csv                   muestra lo que cambiaría (simulación)");
-        con.Print(L"  /import archivo.csv /apply            aplica el estado (requiere administrador)");
-        con.Print(L"  /import archivo.csv /apply /includecritical   incluye cambios peligrosos en servicios críticos");
+    if (a.help) {
+        con.Print(F("cli.usage", {SG_VERSION_WSTR}));
         return 0;
     }
     std::vector<sg::ServiceInfo> svcs;
     std::wstring err;
-    if (!sg::EnumerateServices(svcs, err)) { con.Print(L"ERROR al enumerar servicios: " + err); return 1; }
+    if (!sg::EnumerateServices(svcs, err)) { con.Print(F("log.errenum", {err})); return 1; }
 
-    if (doExport) {
+    if (a.doExport) {
         std::vector<sg::SavedService> v;
         for (const auto& s : svcs)
             if (s.configOk) v.push_back({s.name, s.displayName, s.mode, s.state});
-        if (!WriteAll(file, sg::WriteCsv(v), err)) { con.Print(L"ERROR al escribir " + file + L": " + err); return 1; }
-        con.Print(L"Exportados " + std::to_wstring(v.size()) + L" servicios a " + file);
+        if (!WriteAll(a.file, sg::WriteCsv(v), err)) { con.Print(F("cli.errwrite", {a.file, err})); return 1; }
+        con.Print(P("cli.exported", static_cast<long long>(v.size()), {a.file}));
         return 0;
     }
 
     std::string data;
     std::vector<sg::SavedService> saved;
-    if (!ReadAll(file, data, err) || !sg::ParseCsv(data, saved, err)) { con.Print(L"ERROR al leer " + file + L": " + err); return 1; }
+    if (!ReadAll(a.file, data, err) || !sg::ParseCsv(data, saved, err)) { con.Print(F("cli.errread", {a.file, err})); return 1; }
     std::vector<sg::CurrentService> cur;
     for (const auto& s : svcs)
         if (s.configOk) cur.push_back({s.name, s.displayName, s.mode, s.state});
     const sg::RestorePlan plan = sg::BuildRestorePlan(saved, cur);
-    con.Print(L"Servicios en el archivo: " + std::to_wstring(saved.size()) + L"; sin cambios: " +
-              std::to_wstring(plan.unchanged) + L"; no encontrados: " + std::to_wstring(plan.missing.size()) +
-              L"; operaciones: " + std::to_wstring(plan.ops.size()));
-    for (const auto& n : plan.notes) con.Print(L"  nota: " + n);
-    for (const auto& m : plan.missing) con.Print(L"  no existe: " + m);
+    con.Print(F("cli.summary", {N(static_cast<long long>(saved.size())), N(plan.unchanged),
+                                N(static_cast<long long>(plan.missing.size())), N(static_cast<long long>(plan.ops.size()))}));
+    for (const auto& n : plan.notes) con.Print(F("log.note", {n}));
+    for (const auto& m : plan.missing) con.Print(F("log.missing", {m}));
     for (const auto& op : plan.ops)
-        con.Print(std::wstring(L"  ") + (op.risky ? L"[CRÍTICO] " : L"") + OpName(op.kind) + L": " + op.name + L" " + op.note);
-    if (!apply) { con.Print(L"(Simulación. Añada /apply para aplicar los cambios.)"); return 0; }
-    if (!sg::IsElevated()) { con.Print(L"ERROR: se requieren privilegios de administrador (consola elevada)."); return 3; }
+        con.Print(L"  " + F("line.restore", {CritTag(op.risky), OpName(op.kind), op.displayName, op.name, op.note}));
+    if (!a.apply) { con.Print(T("cli.simulation")); return 0; }
+    if (!sg::IsElevated()) { con.Print(T("cli.needadmin")); return 3; }
 
     Job job;
-    job.skipCriticalDependents = !includeCrit;
+    job.skipCriticalDependents = !a.includeCrit;
     int fail = 0;
     for (const auto& op : plan.ops) {
-        if (op.risky && !includeCrit) { con.Print(L"[OMITIDO] " + std::wstring(OpName(op.kind)) + L": " + op.name + L" (crítico)"); continue; }
+        if (op.risky && !a.includeCrit) { con.Print(F("cli.skipped", {OpName(op.kind), op.name})); continue; }
         JobItem it{op.kind, op.name, op.displayName, op.mode};
         const sg::OpResult r = ExecuteItem(it, job, [&](const std::wstring& s) { con.Print(s); }, nullptr);
-        con.Print(std::wstring(r.ok ? L"[OK]    " : L"[ERROR] ") + OpName(op.kind) + L": " + op.name + L": " + r.message);
+        con.Print(F(r.ok ? "log.result.ok" : "log.result.err", {OpName(op.kind), op.displayName, op.name, r.message}));
         if (!r.ok) ++fail;
     }
     return fail ? 1 : 0;
@@ -1377,21 +1458,24 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     std::vector<std::wstring> args;
     for (int i = 0; i < argc; ++i) args.emplace_back(argv[i]);
     LocalFree(argv);
+    const CliArgs cli = ParseArgs(args);
 
-    const int cli = RunCli(args);
-    if (cli >= 0) return cli;
+    // Idioma: se carga antes que nada para que también la línea de comandos esté traducida.
+    const std::vector<std::wstring> langWarnings = sg::langwin::LoadCatalogs(inst);
+    sg::langwin::ApplyStartupLanguage(cli.lang);
+    const std::wstring pref = sg::langwin::LoadPreference();
+    g.langPref = (cli.lang.empty() && (pref.empty() || pref == L"auto")) ? L"" : sg::i18n::ActiveLanguage();
+
+    const int cliResult = RunCli(cli);
+    if (cliResult >= 0) return cliResult;
 
     g.inst = inst;
     g.elevated = sg::IsElevated();
-    bool noElevate = false, wasElevated = false;
-    for (const auto& a : args) {
-        const std::wstring l = sg::ToLower(a);
-        if (l == L"/noelevate" || l == L"-noelevate") noElevate = true;
-        if (l == L"/elevated") wasElevated = true;
-    }
-    if (!g.elevated && !noElevate && !wasElevated) {
+    if (!g.elevated && !cli.noElevate && !cli.wasElevated) {
         // Intento automático de elevación (UAC). Si se rechaza, se continúa en modo sólo lectura.
-        if (RelaunchElevated(L"/elevated")) return 0;
+        std::wstring params = L"/elevated";
+        if (!cli.lang.empty()) params += L" /lang:" + cli.lang;
+        if (RelaunchElevated(params)) return 0;
     }
 
     INITCOMMONCONTROLSEX icc{sizeof(icc), ICC_LISTVIEW_CLASSES | ICC_BAR_CLASSES | ICC_STANDARD_CLASSES};
@@ -1413,9 +1497,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     wc.lpszClassName = kClassName;
     RegisterClassExW(&wc);
 
-    std::wstring title = kAppTitle;
-    if (!g.elevated) title += L"  [SOLO LECTURA - sin privilegios de administrador]";
-    HWND wnd = CreateWindowExW(WS_EX_CONTROLPARENT, kClassName, title.c_str(), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
+    HWND wnd = CreateWindowExW(WS_EX_CONTROLPARENT, kClassName, L"ServiGestWin10", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
                                CW_USEDEFAULT, S(1400), S(800), nullptr, nullptr, inst, nullptr);
     if (!wnd) return 1;
     ShowWindow(wnd, show == SW_SHOWDEFAULT || show == SW_SHOWNORMAL ? SW_SHOWMAXIMIZED : show);
@@ -1430,9 +1512,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show) {
     g.accel = CreateAcceleratorTableW(const_cast<ACCEL*>(acc), ARRAYSIZE(acc));
 
     // Carga inicial: la lista aparece nada más abrir la aplicación.
-    Log(std::wstring(L"ServiGestWin10 ") + SG_VERSION_WSTR + (g.elevated ? L" - con privilegios de administrador."
-        : L" - SIN privilegios de administrador: sólo lectura (Archivo > Reiniciar como administrador)."));
-    if (FullRefresh()) Log(L"Cargados " + std::to_wstring(g.rows.size()) + L" servicios.");
+    Log(F(g.elevated ? "log.startup.admin" : "log.startup.readonly", {SG_VERSION_WSTR, ActiveLanguageName()}));
+    for (const auto& w : langWarnings) Log(F("log.langwarning", {w}));
+    if (FullRefresh()) Log(P("log.loaded", static_cast<long long>(g.rows.size())));
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {

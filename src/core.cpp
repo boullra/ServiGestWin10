@@ -1,5 +1,6 @@
 // ServiGestWin10 - core.cpp: lógica portable (CSV, etiquetas, plan de restauración)
 #include "core.hpp"
+#include "i18n.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -132,30 +133,35 @@ const wchar_t* StartModeToken(StartMode m) {
 StartMode StartModeFromToken(const std::wstring& raw) {
     const std::wstring s = ToLower(Trim(raw));
     if (s.empty()) return StartMode::Unknown;
+    // Etiquetas exactas en cualquiera de los idiomas cargados
+    if (i18n::MatchesAnyLanguage(s, "mode.delayed") || i18n::MatchesAnyLanguage(s, "mode.delayed.trigger"))
+        return StartMode::AutomaticDelayed;
+    if (i18n::MatchesAnyLanguage(s, "mode.auto") || i18n::MatchesAnyLanguage(s, "mode.auto.trigger"))
+        return StartMode::Automatic;
+    if (i18n::MatchesAnyLanguage(s, "mode.manual") || i18n::MatchesAnyLanguage(s, "mode.manual.trigger"))
+        return StartMode::Manual;
+    if (i18n::MatchesAnyLanguage(s, "mode.disabled")) return StartMode::Disabled;
+    // Tokens y aproximaciones (inglés / español / francés)
     if (s.find(L"delay") != std::wstring::npos || s.find(L"retras") != std::wstring::npos)
         return StartMode::AutomaticDelayed;
     if (s.compare(0, 4, L"auto") == 0) return StartMode::Automatic;
-    if (s.compare(0, 6, L"manual") == 0 || s == L"demand") return StartMode::Manual;
-    if (s.compare(0, 5, L"disab") == 0 || s.compare(0, 6, L"deshab") == 0) return StartMode::Disabled;
+    if (s.compare(0, 6, L"manual") == 0 || s.compare(0, 5, L"manue") == 0 || s == L"demand") return StartMode::Manual;
+    if (s.compare(0, 5, L"disab") == 0 || s.compare(0, 6, L"deshab") == 0 || s.compare(0, 4, L"d\u00e9sa") == 0)
+        return StartMode::Disabled;
     if (s == L"boot" || s == L"arranque") return StartMode::Boot;
     if (s == L"system" || s == L"sistema") return StartMode::System;
     return StartMode::Unknown;
 }
 
 std::wstring StartModeLabel(StartMode m, bool trigger) {
-    std::wstring s;
     switch (m) {
-        case StartMode::Boot: return L"Arranque (controlador)";
-        case StartMode::System: return L"Sistema (controlador)";
-        case StartMode::Automatic:
-            return trigger ? L"Automático (desencadenar inicio)" : L"Automático";
-        case StartMode::AutomaticDelayed:
-            return trigger ? L"Automático (inicio retrasado, desencadenar inicio)"
-                           : L"Automático (inicio retrasado)";
-        case StartMode::Manual:
-            return trigger ? L"Manual (desencadenar inicio)" : L"Manual";
-        case StartMode::Disabled: return L"Deshabilitado";
-        default: return L"Desconocido";
+        case StartMode::Boot: return T("mode.boot");
+        case StartMode::System: return T("mode.system");
+        case StartMode::Automatic: return T(trigger ? "mode.auto.trigger" : "mode.auto");
+        case StartMode::AutomaticDelayed: return T(trigger ? "mode.delayed.trigger" : "mode.delayed");
+        case StartMode::Manual: return T(trigger ? "mode.manual.trigger" : "mode.manual");
+        case StartMode::Disabled: return T("mode.disabled");
+        default: return T("mode.unknown");
     }
 }
 
@@ -174,26 +180,33 @@ const wchar_t* RunStateToken(RunState s) {
 
 RunState RunStateFromToken(const std::wstring& raw) {
     const std::wstring s = ToLower(Trim(raw));
-    if (s == L"stopped" || s.find(L"detenido") != std::wstring::npos) return RunState::Stopped;
-    if (s == L"startpending" || s.find(L"iniciando") != std::wstring::npos) return RunState::StartPending;
-    if (s == L"stoppending" || s.find(L"deteniendo") != std::wstring::npos) return RunState::StopPending;
-    if (s == L"running" || s.find(L"ejecuci") != std::wstring::npos) return RunState::Running;
-    if (s == L"continuepending" || s.find(L"reanudando") != std::wstring::npos) return RunState::ContinuePending;
-    if (s == L"pausepending" || s.find(L"pausando") != std::wstring::npos) return RunState::PausePending;
-    if (s == L"paused" || s.find(L"pausa") != std::wstring::npos) return RunState::Paused;
+    static const struct { RunState st; const char* key; const wchar_t* token; } kStates[] = {
+        {RunState::Stopped, "state.stopped", L"stopped"},
+        {RunState::StartPending, "state.startpending", L"startpending"},
+        {RunState::StopPending, "state.stoppending", L"stoppending"},
+        {RunState::Running, "state.running", L"running"},
+        {RunState::ContinuePending, "state.continuepending", L"continuepending"},
+        {RunState::PausePending, "state.pausepending", L"pausepending"},
+        {RunState::Paused, "state.paused", L"paused"},
+    };
+    for (const auto& k : kStates)
+        if (s == k.token || i18n::MatchesAnyLanguage(s, k.key)) return k.st;
+    // Aproximaciones para etiquetas escritas a mano
+    if (s.find(L"detenido") != std::wstring::npos || s.find(L"arr\u00eat") != std::wstring::npos) return RunState::Stopped;
+    if (s.find(L"ejecuci") != std::wstring::npos || s.find(L"cours") != std::wstring::npos) return RunState::Running;
     return RunState::Unknown;
 }
 
-const wchar_t* RunStateLabel(RunState s) {
+std::wstring RunStateLabel(RunState s) {
     switch (s) {
-        case RunState::Stopped: return L"Detenido";
-        case RunState::StartPending: return L"Iniciando";
-        case RunState::StopPending: return L"Deteniendo";
-        case RunState::Running: return L"En ejecución";
-        case RunState::ContinuePending: return L"Reanudando";
-        case RunState::PausePending: return L"Pausando";
-        case RunState::Paused: return L"En pausa";
-        default: return L"Desconocido";
+        case RunState::Stopped: return T("state.stopped");
+        case RunState::StartPending: return T("state.startpending");
+        case RunState::StopPending: return T("state.stoppending");
+        case RunState::Running: return T("state.running");
+        case RunState::ContinuePending: return T("state.continuepending");
+        case RunState::PausePending: return T("state.pausepending");
+        case RunState::Paused: return T("state.paused");
+        default: return T("state.unknown");
     }
 }
 
@@ -280,7 +293,7 @@ bool ParseCsv(const std::string& dataIn, std::vector<SavedService>& out, std::ws
 
     const wchar_t sep = DetectSeparator(text);
     auto rows = SplitCsv(text, sep);
-    if (rows.empty()) { error = L"El archivo está vacío."; return false; }
+    if (rows.empty()) { error = T("csv.err.empty"); return false; }
 
     int cName = -1, cDisp = -1, cStart = -1, cState = -1;
     const auto& hdr = rows[0];
@@ -292,7 +305,7 @@ bool ParseCsv(const std::string& dataIn, std::vector<SavedService>& out, std::ws
         else if (h == L"state" || h == L"estado" || h == L"status") cState = (int)i;
     }
     if (cName < 0 || (cStart < 0 && cState < 0)) {
-        error = L"Cabecera no reconocida. Se esperan las columnas ServiceName, StartType y State.";
+        error = T("csv.err.header");
         return false;
     }
     for (size_t r = 1; r < rows.size(); ++r) {
@@ -306,7 +319,7 @@ bool ParseCsv(const std::string& dataIn, std::vector<SavedService>& out, std::ws
         s.state = RunStateFromToken(get(cState));
         out.push_back(std::move(s));
     }
-    if (out.empty()) { error = L"El archivo no contiene servicios."; return false; }
+    if (out.empty()) { error = T("csv.err.noservices"); return false; }
     return true;
 }
 
@@ -335,7 +348,7 @@ RestorePlan BuildRestorePlan(const std::vector<SavedService>& saved,
             auto bit = (base != s.name) ? byBase.find(ToLower(base)) : byBase.end();
             if (bit != byBase.end() && bit->second.size() == 1) {
                 idx = bit->second[0];
-                plan.notes.push_back(s.name + L" -> " + current[idx].name + L" (instancia por usuario)");
+                plan.notes.push_back(F("plan.note.instance", {s.name, current[idx].name}));
             } else {
                 plan.missing.push_back(s.name);
                 continue;
@@ -350,22 +363,22 @@ RestorePlan BuildRestorePlan(const std::vector<SavedService>& saved,
         if (modeRestorable && s.mode != c.mode && c.mode != StartMode::Unknown) {
             PlannedOp op{OpKind::SetMode, c.name, c.displayName, s.mode,
                          IsRiskyModeChange(c.name, s.mode), L""};
-            op.note = StartModeLabel(c.mode, false) + L" -> " + StartModeLabel(s.mode, false);
+            op.note = StartModeLabel(c.mode, false) + L" \u2192 " + StartModeLabel(s.mode, false);
             modes.push_back(op);
             finalMode = s.mode;
             changed = true;
         }
         if (IsRunningLike(s.state) && IsStoppedLike(c.state)) {
             if (finalMode == StartMode::Disabled) {
-                plan.notes.push_back(c.name + L": estaba en ejecución pero su modo guardado es Deshabilitado; no se inicia.");
+                plan.notes.push_back(F("plan.note.disabledrunning", {c.name}));
             } else {
                 starts.push_back(PlannedOp{OpKind::Start, c.name, c.displayName, StartMode::Unknown, false,
-                                           L"Detenido -> En ejecución"});
+                                           RunStateLabel(RunState::Stopped) + L" \u2192 " + RunStateLabel(RunState::Running)});
                 changed = true;
             }
         } else if (IsStoppedLike(s.state) && !IsStoppedLike(c.state) && c.state != RunState::Unknown) {
             stops.push_back(PlannedOp{OpKind::Stop, c.name, c.displayName, StartMode::Unknown,
-                                      IsRiskyStop(c.name), L"En ejecución -> Detenido"});
+                                      IsRiskyStop(c.name), RunStateLabel(RunState::Running) + L" \u2192 " + RunStateLabel(RunState::Stopped)});
             changed = true;
         }
         if (!changed) ++plan.unchanged;
