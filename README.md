@@ -153,6 +153,12 @@ GitHub Actions:
 Los dos `.exe` (MinGW y MSVC) quedan como artefactos descargables de cada ejecución, en la pestaña
 *Actions*. Un pull request no debería fusionarse si alguno de los trabajos está en rojo.
 
+**Publicar una versión**: subir el número en `src/version.h` (y `res/app.manifest`), fusionar `dev`
+en `main` y crear una *Release* nueva en GitHub con la etiqueta `vX.Y.Z` sobre `main`. El workflow
+`.github/workflows/release.yml` compila entonces el `.exe` desde esa etiqueta (tras comprobar que la
+versión del código coincide y pasar los tests) y adjunta a la release `ServiGestWin10-X.Y.Z-x64.exe`
+y `SHA256SUMS.txt`.
+
 ## Qué se ha probado y qué no
 
 | Prueba | Dónde | Resultado |
