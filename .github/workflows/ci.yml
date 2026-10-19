@@ -1,0 +1,116 @@
+# Integración continua de ServiGestWin10
+#
+# - i18n:          coherencia de los archivos de idioma (tools/check_i18n.py)
+# - linux-mingw:   tests portables con sanitizers + compilación cruzada con MinGW-w64 (build.sh)
+# - windows-msvc:  compilación con Visual Studio (CMake), tests (ctest) y prueba de humo de
+#                  SOLO LECTURA contra los servicios reales del runner de Windows
+#                  (/export y /import en modo simulación: no se modifica ningún servicio)
+#
+# Cada ejecución publica los .exe compilados como artefactos descargables.
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  i18n:
+    name: Idiomas (check_i18n)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar archivos de idioma
+        run: python3 tools/check_i18n.py
+
+  linux-mingw:
+    name: Linux · MinGW-w64 + sanitizers
+    needs: i18n
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar MinGW-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++-mingw-w64-x86-64-posix
+
+      - name: Tests portables (ASan + UBSan, avisos como errores)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -O1 -g \
+              -fsanitize=address,undefined -fno-sanitize-recover=all \
+              -Isrc tests/test_core.cpp src/core.cpp src/knowledge.cpp src/i18n.cpp -o test_native
+          ./test_native lang
+
+      - name: Compilación cruzada para Windows (build.sh)
+        run: ./build.sh
+
+      - name: Publicar ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ServiGestWin10-mingw-x64
+          path: build/ServiGestWin10.exe
+          if-no-files-found: error
+
+  windows-msvc:
+    name: Windows · Visual Studio
+    needs: i18n
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar (CMake)
+        run: cmake -S . -B build -A x64
+
+      - name: Compilar (Release)
+        run: cmake --build build --config Release --parallel
+
+      - name: Tests (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Prueba de humo de solo lectura con los servicios reales
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'build\Release\ServiGestWin10.exe'
+          $csv = Join-Path $PWD 'estado.csv'
+
+          # 1) Exportar el estado de todos los servicios
+          $p = Start-Process -FilePath $exe -ArgumentList '/lang:en', '/export', "`"$csv`"" `
+                 -Wait -PassThru -NoNewWindow -RedirectStandardOutput export.txt
+          Get-Content export.txt
+          if ($p.ExitCode -ne 0) { throw "La exportación terminó con código $($p.ExitCode)" }
+          $rows = (Import-Csv -Path $csv -Delimiter ';').Count
+          Write-Host "Servicios exportados: $rows"
+          if ($rows -lt 50) { throw "Se esperaban al menos 50 servicios y hay $rows" }
+
+          # 2) Restaurar en modo simulación (sin /apply): no cambia nada, sólo muestra el plan
+          $p = Start-Process -FilePath $exe -ArgumentList '/lang:en', '/import', "`"$csv`"" `
+                 -Wait -PassThru -NoNewWindow -RedirectStandardOutput plan.txt
+          Get-Content plan.txt
+          if ($p.ExitCode -ne 0) { throw "La simulación terminó con código $($p.ExitCode)" }
+          if (-not (Select-String -Path plan.txt -Pattern 'not found: 0' -Quiet)) {
+            throw 'La simulación no encontró todos los servicios recién exportados'
+          }
+          if (-not (Select-String -Path plan.txt -Pattern 'Dry run' -Quiet)) {
+            throw 'La simulación no indicó que era un ensayo (Dry run)'
+          }
+
+      - name: Publicar ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ServiGestWin10-msvc-x64
+          path: build/Release/ServiGestWin10.exe
+          if-no-files-found: error

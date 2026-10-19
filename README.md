@@ -139,6 +139,26 @@ Estructura:
 | `tests/test_core.cpp` | 415 comprobaciones |
 | `res/` | Manifiesto, icono, versión e idiomas incrustados |
 
+## Integración continua
+
+Cada push a `main` o `dev` y cada pull request hacia ellas ejecuta `.github/workflows/ci.yml` en
+GitHub Actions:
+
+| Trabajo | Qué hace |
+|---|---|
+| **Idiomas** | `tools/check_i18n.py`: mismas claves y marcadores en todos los idiomas |
+| **Linux · MinGW-w64** | Tests portables con AddressSanitizer y UBSan (avisos como errores) y compilación cruzada con `build.sh` |
+| **Windows · Visual Studio** | Compilación con CMake + MSVC, `ctest` y prueba de humo **de solo lectura** con los servicios reales de la máquina de GitHub (`/export` y `/import` en modo simulación; no modifica ningún servicio) |
+
+Los dos `.exe` (MinGW y MSVC) quedan como artefactos descargables de cada ejecución, en la pestaña
+*Actions*. Un pull request no debería fusionarse si alguno de los trabajos está en rojo.
+
+**Publicar una versión**: subir el número en `src/version.h` (y `res/app.manifest`), fusionar `dev`
+en `main` y crear una *Release* nueva en GitHub con la etiqueta `vX.Y.Z` sobre `main`. El workflow
+`.github/workflows/release.yml` compila entonces el `.exe` desde esa etiqueta (tras comprobar que la
+versión del código coincide y pasar los tests) y adjunta a la release `ServiGestWin10-X.Y.Z-x64.exe`
+y `SHA256SUMS.txt`.
+
 ## Qué se ha probado y qué no
 
 | Prueba | Dónde | Resultado |

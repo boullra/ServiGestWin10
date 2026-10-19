@@ -6,8 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(ServiGestWin10 WIN32
     src/main.cpp src/scm.cpp src/core.cpp src/knowledge.cpp src/i18n.cpp src/lang_win.cpp res/app.rc)
-target_compile_definitions(ServiGestWin10 PRIVATE UNICODE _UNICODE _WIN32_WINNT=0x0A00 WINVER=0x0A00)
-target_include_directories(ServiGestWin10 PRIVATE src)
+# NOMINMAX: evita que windows.h defina las macros min/max, que rompen std::min/std::max con MSVC
+target_compile_definitions(ServiGestWin10 PRIVATE UNICODE _UNICODE _WIN32_WINNT=0x0A00 WINVER=0x0A00 NOMINMAX)
+# "res" también sirve al compilador de recursos para localizar app.ico, app.manifest y ../lang/*.lang
+target_include_directories(ServiGestWin10 PRIVATE src res)
 target_link_libraries(ServiGestWin10 PRIVATE comctl32 comdlg32 shlwapi shell32 uxtheme advapi32 gdi32 user32)
 
 if(MSVC)

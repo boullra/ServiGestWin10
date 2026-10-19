@@ -1,0 +1,73 @@
+# Publicación de binarios de ServiGestWin10
+#
+# Al publicar una release en GitHub (que crea su etiqueta vX.Y.Z), este workflow:
+#   1. obtiene exactamente el código de esa etiqueta,
+#   2. comprueba que la versión de src/version.h coincide con la etiqueta,
+#   3. pasa la comprobación de idiomas y los tests con sanitizers,
+#   4. compila con MinGW-w64 (build.sh),
+#   5. adjunta a la release ServiGestWin10-X.Y.Z-x64.exe y SHA256SUMS.txt.
+#
+# También puede lanzarse a mano (Actions > Release > Run workflow) indicando la etiqueta,
+# por ejemplo para regenerar los binarios de una release existente.
+#
+# Nota: sólo se ejecuta para etiquetas cuyo commit ya contiene este archivo.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Etiqueta de la release (por ejemplo v1.2.0)"
+        required: true
+
+permissions:
+  contents: write   # necesario para adjuntar archivos a la release
+
+jobs:
+  build-and-upload:
+    name: Compilar y adjuntar binarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Comprobar que la versión del código coincide con la etiqueta
+        run: |
+          VERSION="${TAG#v}"
+          if ! grep -q "SG_VERSION_STR \"${VERSION}\"" src/version.h; then
+            echo "::error::src/version.h no declara la versión ${VERSION} (etiqueta ${TAG})"
+            exit 1
+          fi
+
+      - name: Instalar MinGW-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++-mingw-w64-x86-64-posix
+
+      - name: Tests portables (ASan + UBSan)
+        run: |
+          g++ -std=c++17 -Wall -Wextra -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all \
+              -Isrc tests/test_core.cpp src/core.cpp src/knowledge.cpp src/i18n.cpp -o test_native
+          ./test_native lang
+
+      - name: Compilar (build.sh)
+        run: ./build.sh
+
+      - name: Preparar archivos de la release
+        run: |
+          VERSION="${TAG#v}"
+          mkdir dist
+          cp build/ServiGestWin10.exe "dist/ServiGestWin10-${VERSION}-x64.exe"
+          (cd dist && sha256sum ./*.exe | sed 's# \./# #' > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Adjuntar a la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
